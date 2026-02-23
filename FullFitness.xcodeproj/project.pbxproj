@@ -6,14 +6,70 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		BFBCDC6A2F4953BF0066A138 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BFBCDC692F4953BF0066A138 /* WidgetKit.framework */; };
+		BFBCDC6C2F4953BF0066A138 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BFBCDC6B2F4953BF0066A138 /* SwiftUI.framework */; };
+		BFBCDC7D2F4953C10066A138 /* StuFitWidgetExtensionExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BFBCDC672F4953BF0066A138 /* StuFitWidgetExtensionExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		BFBCDC7B2F4953C10066A138 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BF21F4942F2835DF003E0B2B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BFBCDC662F4953BF0066A138;
+			remoteInfo = StuFitWidgetExtensionExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		BFBCDC7E2F4953C10066A138 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				BFBCDC7D2F4953C10066A138 /* StuFitWidgetExtensionExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		BF21F49C2F2835DF003E0B2B /* StuFit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StuFit.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BFBCDC672F4953BF0066A138 /* StuFitWidgetExtensionExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StuFitWidgetExtensionExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		BFBCDC692F4953BF0066A138 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		BFBCDC6B2F4953BF0066A138 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		BFBCDC812F4953C10066A138 /* Exceptions for "StuFitWidgetExtension" folder in "StuFitWidgetExtensionExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = BFBCDC662F4953BF0066A138 /* StuFitWidgetExtensionExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		BF21F49E2F2835DF003E0B2B /* StuFit */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = StuFit;
+			sourceTree = "<group>";
+		};
+		BFCCDD012F49A0010066A138 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		BFBCDC6D2F4953BF0066A138 /* StuFitWidgetExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				BFBCDC812F4953C10066A138 /* Exceptions for "StuFitWidgetExtension" folder in "StuFitWidgetExtensionExtension" target */,
+			);
+			path = StuFitWidgetExtension;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -26,6 +82,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BFBCDC642F4953BF0066A138 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BFBCDC6C2F4953BF0066A138 /* SwiftUI.framework in Frameworks */,
+				BFBCDC6A2F4953BF0066A138 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -33,6 +98,9 @@
 			isa = PBXGroup;
 			children = (
 				BF21F49E2F2835DF003E0B2B /* StuFit */,
+				BFCCDD012F49A0010066A138 /* Shared */,
+				BFBCDC6D2F4953BF0066A138 /* StuFitWidgetExtension */,
+				BFBCDC682F4953BF0066A138 /* Frameworks */,
 				BF21F49D2F2835DF003E0B2B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,8 +109,18 @@
 			isa = PBXGroup;
 			children = (
 				BF21F49C2F2835DF003E0B2B /* StuFit.app */,
+				BFBCDC672F4953BF0066A138 /* StuFitWidgetExtensionExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		BFBCDC682F4953BF0066A138 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				BFBCDC692F4953BF0066A138 /* WidgetKit.framework */,
+				BFBCDC6B2F4953BF0066A138 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -55,13 +133,16 @@
 				BF21F4982F2835DF003E0B2B /* Sources */,
 				BF21F4992F2835DF003E0B2B /* Frameworks */,
 				BF21F49A2F2835DF003E0B2B /* Resources */,
+				BFBCDC7E2F4953C10066A138 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				BFBCDC7C2F4953C10066A138 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				BF21F49E2F2835DF003E0B2B /* StuFit */,
+				BFCCDD012F49A0010066A138 /* Shared */,
 			);
 			name = StuFit;
 			packageProductDependencies = (
@@ -69,6 +150,29 @@
 			productName = StuFit;
 			productReference = BF21F49C2F2835DF003E0B2B /* StuFit.app */;
 			productType = "com.apple.product-type.application";
+		};
+		BFBCDC662F4953BF0066A138 /* StuFitWidgetExtensionExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BFBCDC822F4953C10066A138 /* Build configuration list for PBXNativeTarget "StuFitWidgetExtensionExtension" */;
+			buildPhases = (
+				BFBCDC632F4953BF0066A138 /* Sources */,
+				BFBCDC642F4953BF0066A138 /* Frameworks */,
+				BFBCDC652F4953BF0066A138 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				BFBCDC6D2F4953BF0066A138 /* StuFitWidgetExtension */,
+				BFCCDD012F49A0010066A138 /* Shared */,
+			);
+			name = StuFitWidgetExtensionExtension;
+			packageProductDependencies = (
+			);
+			productName = StuFitWidgetExtensionExtension;
+			productReference = BFBCDC672F4953BF0066A138 /* StuFitWidgetExtensionExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -81,6 +185,9 @@
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					BF21F49B2F2835DF003E0B2B = {
+						CreatedOnToolsVersion = 26.2;
+					};
+					BFBCDC662F4953BF0066A138 = {
 						CreatedOnToolsVersion = 26.2;
 					};
 				};
@@ -100,12 +207,20 @@
 			projectRoot = "";
 			targets = (
 				BF21F49B2F2835DF003E0B2B /* StuFit */,
+				BFBCDC662F4953BF0066A138 /* StuFitWidgetExtensionExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		BF21F49A2F2835DF003E0B2B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BFBCDC652F4953BF0066A138 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -122,7 +237,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BFBCDC632F4953BF0066A138 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		BFBCDC7C2F4953C10066A138 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BFBCDC662F4953BF0066A138 /* StuFitWidgetExtensionExtension */;
+			targetProxy = BFBCDC7B2F4953C10066A138 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		BF21F4A52F2835E0003E0B2B /* Debug */ = {
@@ -259,6 +389,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "This app needs access to your health data to display your fitness information including step count and workout data.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "This app needs permission to write health data including workouts and step count to your Health app.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -294,6 +425,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "This app needs access to your health data to display your fitness information including step count and workout data.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "This app needs permission to write health data including workouts and step count to your Health app.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -309,6 +441,66 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		BFBCDC7F2F4953C10066A138 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 847U7BXLK8;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = StuFitWidgetExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = StuFitWidgetExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.16pixels.StuFit.StuFitWidgetExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		BFBCDC802F4953C10066A138 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 847U7BXLK8;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = StuFitWidgetExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = StuFitWidgetExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.16pixels.StuFit.StuFitWidgetExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
@@ -333,6 +525,15 @@
 			buildConfigurations = (
 				BF21F4A82F2835E0003E0B2B /* Debug */,
 				BF21F4A92F2835E0003E0B2B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BFBCDC822F4953C10066A138 /* Build configuration list for PBXNativeTarget "StuFitWidgetExtensionExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BFBCDC7F2F4953C10066A138 /* Debug */,
+				BFBCDC802F4953C10066A138 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

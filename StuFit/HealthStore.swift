@@ -290,15 +290,7 @@ final class HealthStore: NSObject, ObservableObject {
             workoutDataSource = dataSource
 
             session.startActivity(with: Date())
-            builder.beginCollection(withStart: Date()) { success, error in
-                if let error = error {
-                    print("Workout builder start error: \(error.localizedDescription)")
-                    return
-                }
-                if !success {
-                    print("Workout builder failed to begin collection")
-                }
-            }
+            try await builder.beginCollection(at: Date())
 
             currentWorkoutStartDate = Date()
             DispatchQueue.main.async {
@@ -325,10 +317,10 @@ final class HealthStore: NSObject, ObservableObject {
                 try await finishWorkoutCollection(using: builder, endDate: endDate)
             } catch {
                 print("Workout collection error: \(error.localizedDescription)")
-                await saveFallbackWorkout(startDate: startDate, endDate: endDate, duration: duration)
+                await saveFallbackWorkout(startDate: startDate, endDate: endDate)
             }
         } else {
-            await saveFallbackWorkout(startDate: startDate, endDate: endDate, duration: duration)
+            await saveFallbackWorkout(startDate: startDate, endDate: endDate)
         }
 
         currentWorkoutStartDate = nil
@@ -364,19 +356,16 @@ final class HealthStore: NSObject, ObservableObject {
         }
     }
 
-    private func saveFallbackWorkout(startDate: Date, endDate: Date, duration: TimeInterval) async {
-        let workout = HKWorkout(
-            activityType: .traditionalStrengthTraining,
-            start: startDate,
-            end: endDate,
-            duration: duration,
-            totalEnergyBurned: nil,
-            totalDistance: nil,
-            metadata: nil
-        )
+    private func saveFallbackWorkout(startDate: Date, endDate: Date) async {
+        let configuration = HKWorkoutConfiguration()
+        configuration.activityType = .traditionalStrengthTraining
+        configuration.locationType = .indoor
 
         do {
-            try await healthStore.save(workout)
+            let builder = HKWorkoutBuilder(healthStore: healthStore, configuration: configuration, device: .local())
+            try await builder.beginCollection(at: startDate)
+            try await builder.endCollection(at: endDate)
+            _ = try await builder.finishWorkout()
             print("Workout saved to HealthKit (fallback)")
         } catch {
             print("Error saving workout to HealthKit: \(error.localizedDescription)")
@@ -445,7 +434,7 @@ final class HealthStore: NSObject, ObservableObject {
     private func configureWatchConnectivity() {
 #if canImport(WatchConnectivity)
         guard WCSession.isSupported() else {
-            watchConnectionStatus = .unsupported
+            setWatchConnectionStatus(.unsupported)
             return
         }
 
@@ -455,20 +444,26 @@ final class HealthStore: NSObject, ObservableObject {
         watchSession = session
         updateWatchStatus(session)
 #else
-        watchConnectionStatus = .unsupported
+        setWatchConnectionStatus(.unsupported)
 #endif
+    }
+
+    private func setWatchConnectionStatus(_ status: WatchConnectionStatus) {
+        DispatchQueue.main.async {
+            self.watchConnectionStatus = status
+        }
     }
 
     #if canImport(WatchConnectivity)
     private func updateWatchStatus(_ session: WCSession) {
         if !session.isPaired {
-            watchConnectionStatus = .notPaired
+            setWatchConnectionStatus(.notPaired)
         } else if !session.isWatchAppInstalled {
-            watchConnectionStatus = .watchAppNotInstalled
+            setWatchConnectionStatus(.watchAppNotInstalled)
         } else if session.isReachable {
-            watchConnectionStatus = .ready
+            setWatchConnectionStatus(.ready)
         } else {
-            watchConnectionStatus = .pairedNotReachable
+            setWatchConnectionStatus(.pairedNotReachable)
         }
     }
     #endif

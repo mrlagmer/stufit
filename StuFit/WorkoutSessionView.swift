@@ -25,6 +25,8 @@ struct WorkoutSessionView: View {
     @State private var speechSynthesizer = SpeechSynthesizerDelegate()
     @State private var hasAnnouncedFirstExercise = false
     @State private var warmupSetsPerExercise: [String: [WarmupSet]] = [:]
+    @State private var workoutStartDate: Date = .now
+    @State private var restEndsAt: Date?
     @ScaledMetric(relativeTo: .largeTitle) private var restClockSize: CGFloat = 52
     private let restDuration: TimeInterval = 180
     
@@ -88,6 +90,10 @@ struct WorkoutSessionView: View {
         let minutes = Int(elapsedTime) / 60
         let seconds = Int(elapsedTime) % 60
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    var currentSetLabel: String {
+        "Set \(currentSetIndex + 1)/\(totalSetsIncludingWarmup)"
     }
     
     var restTimeString: String {
@@ -533,8 +539,12 @@ struct WorkoutSessionView: View {
             }
             
             // Start the timer
+            workoutStartDate = .now
             timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
                 elapsedTime += 1
+            }
+            Task {
+                await startLiveActivity()
             }
             // Start HealthKit workout
             Task {
@@ -550,13 +560,34 @@ struct WorkoutSessionView: View {
             timer?.invalidate()
             restTimer?.invalidate()
             healthStore.stopHeartRateUpdates()
+            Task {
+                await endLiveActivity()
+            }
         }
-        .onChange(of: currentExerciseIndex) { _ in
+        .onChange(of: currentExerciseIndex) {
             // Announce when moving to a new exercise
             if hasAnnouncedFirstExercise {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     announceExerciseInfo()
                 }
+            }
+            Task {
+                await updateLiveActivity()
+            }
+        }
+        .onChange(of: currentSetIndex) {
+            Task {
+                await updateLiveActivity()
+            }
+        }
+        .onChange(of: onRestTimer) {
+            Task {
+                await updateLiveActivity()
+            }
+        }
+        .onChange(of: restEndsAt) {
+            Task {
+                await updateLiveActivity()
             }
         }
         .alert("Finish Workout?", isPresented: $showingCompleteAlert) {
@@ -572,6 +603,7 @@ struct WorkoutSessionView: View {
                     healthStore.stopHeartRateUpdates()
                     await healthStore.endWorkoutSession(duration: elapsedTime)
                     healthStore.completeWorkout(workout.name)
+                    await endLiveActivity()
                     onBack()
                 }
             }
@@ -600,6 +632,7 @@ struct WorkoutSessionView: View {
         // Start rest (don't increment currentSetIndex here - that happens in completeRest)
         onRestTimer = true
         restTimeRemaining = restDuration
+        restEndsAt = Date().addingTimeInterval(restDuration)
         restEndingAnnounced = false
         restTimer?.invalidate()
         
@@ -617,6 +650,7 @@ struct WorkoutSessionView: View {
     private func completeRest() {
         restTimer?.invalidate()
         onRestTimer = false
+        restEndsAt = nil
         restEndingAnnounced = false
         
         // If we're completing the last set of an exercise, mark it as completed
@@ -633,6 +667,31 @@ struct WorkoutSessionView: View {
             currentExerciseIndex += 1
             currentSetIndex = 0
         }
+    }
+
+    private func startLiveActivity() async {
+        await WorkoutLiveActivityManager.shared.start(
+            workoutName: workout.name,
+            exerciseName: currentExercise?.name ?? "Workout",
+            setLabel: currentSetLabel,
+            startedAt: workoutStartDate,
+            isResting: onRestTimer,
+            restEndDate: restEndsAt
+        )
+    }
+
+    private func updateLiveActivity() async {
+        await WorkoutLiveActivityManager.shared.update(
+            workoutName: workout.name,
+            exerciseName: currentExercise?.name ?? "Workout",
+            setLabel: currentSetLabel,
+            isResting: onRestTimer,
+            restEndDate: restEndsAt
+        )
+    }
+
+    private func endLiveActivity() async {
+        await WorkoutLiveActivityManager.shared.end()
     }
 }
 
@@ -711,7 +770,8 @@ extension WorkoutSessionView {
 }
 
 // MARK: - Speech Synthesizer Delegate Helper
-class SpeechSynthesizerDelegate: NSObject, AVSpeechSynthesizerDelegate {
+@MainActor
+final class SpeechSynthesizerDelegate: NSObject, @preconcurrency AVSpeechSynthesizerDelegate {
     let synthesizer = AVSpeechSynthesizer()
     var onSpeechFinished: (() -> Void)?
     
