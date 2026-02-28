@@ -18,13 +18,24 @@ struct WeightsCoachView: View {
     @State private var selectedDays: Int? = nil
     @State private var showingProgram = false
     @State private var nextWorkout: ProgramWorkout? = nil
+    @State private var workoutOverride: ProgramWorkout? = nil
     @State private var showingEditMenu = false
     @State private var editMode: EditMode = .selectAction
     @State private var editedWeights: [String: Double] = [:]
-    
+
     var selectedProgram: WorkoutProgramTemplate? {
         guard let days = selectedDays else { return nil }
         return WorkoutProgramTemplate.getProgram(for: days)
+    }
+
+    var availableWorkouts: [ProgramWorkout] {
+        guard let program = healthStore.activeWeightProgram,
+              let template = WorkoutProgramTemplate.getProgram(for: program.daysPerWeek) else { return [] }
+        return template.workouts
+    }
+
+    var displayedWorkout: ProgramWorkout? {
+        workoutOverride ?? nextWorkout
     }
     
     var body: some View {
@@ -56,7 +67,7 @@ struct WeightsCoachView: View {
                     .padding(16)
                     
                     // Show active workout if there's an active program
-                    if let activeProgram = healthStore.activeWeightProgram, activeProgram.isActive, let workout = nextWorkout {
+                    if let activeProgram = healthStore.activeWeightProgram, activeProgram.isActive, let workout = displayedWorkout {
                         // Show today's scheduled workout
                         VStack(alignment: .leading, spacing: 16) {
                             // Workout header with edit button
@@ -65,11 +76,39 @@ struct WeightsCoachView: View {
                                     Text("Today's Workout")
                                         .font(.title3)
                                         .fontWeight(.semibold)
-                                    Text(workout.name)
-                                        .font(.headline)
-                                        .foregroundColor(.secondary)
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.85)
+                                    if availableWorkouts.count > 1 {
+                                        Menu {
+                                            ForEach(availableWorkouts, id: \.name) { option in
+                                                Button(action: {
+                                                    workoutOverride = option
+                                                    Task { await healthStore.generateWorkoutTip(for: option) }
+                                                }) {
+                                                    if option.name == workout.name {
+                                                        Label(option.name, systemImage: "checkmark")
+                                                    } else {
+                                                        Text(option.name)
+                                                    }
+                                                }
+                                            }
+                                        } label: {
+                                            HStack(spacing: 4) {
+                                                Text(workout.name)
+                                                    .font(.headline)
+                                                    .foregroundColor(.secondary)
+                                                Image(systemName: "chevron.up.chevron.down")
+                                                    .font(.caption2)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.85)
+                                        }
+                                    } else {
+                                        Text(workout.name)
+                                            .font(.headline)
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.85)
+                                    }
                                 }
                                 Spacer()
                                 Button(action: {
@@ -127,9 +166,7 @@ struct WeightsCoachView: View {
                             VStack(spacing: 12) {
                                 ForEach(workout.exercises.indices, id: \.self) { index in
                                     let exercise = workout.exercises[index]
-                                    let completionCount = healthStore.getExerciseCompletionCount(exercise.name)
-                                    let calculatedWeight = exercise.getWeightForSet(1, completionCount: completionCount)
-                                    let setWeight = healthStore.getCustomWeight(for: exercise.name) ?? calculatedWeight
+                                    let setWeight = healthStore.getNextWorkWeight(for: exercise)
                                     let plates = exercise.getPlatesForWeight(setWeight)
                                     let platesString = formatPlates(plates)
                                     
@@ -310,7 +347,7 @@ struct WeightsCoachView: View {
                 isPresented: $showingEditMenu,
                 healthStore: healthStore,
                 currentProgram: healthStore.activeWeightProgram,
-                nextWorkout: nextWorkout,
+                nextWorkout: displayedWorkout,
                 selectedDays: $selectedDays,
                 editedWeights: $editedWeights
             )
@@ -461,9 +498,7 @@ struct EditWeightsProgramView: View {
                     // Initialize editedWeights with current weights before opening
                     if let exercises = nextWorkout?.exercises {
                         for exercise in exercises {
-                            let completionCount = healthStore.getExerciseCompletionCount(exercise.name)
-                            let calculatedWeight = exercise.getWeightForSet(1, completionCount: completionCount)
-                            let currentWeight = healthStore.getCustomWeight(for: exercise.name) ?? calculatedWeight
+                            let currentWeight = healthStore.getNextWorkWeight(for: exercise)
                             editedWeights[exercise.name] = currentWeight
                         }
                     }

@@ -7,12 +7,20 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		BF05778E2F4EB68D00B69330 /* StuFitWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = BF0577842F4EB68C00B69330 /* StuFitWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		BFBCDC6A2F4953BF0066A138 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BFBCDC692F4953BF0066A138 /* WidgetKit.framework */; };
 		BFBCDC6C2F4953BF0066A138 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BFBCDC6B2F4953BF0066A138 /* SwiftUI.framework */; };
 		BFBCDC7D2F4953C10066A138 /* StuFitWidgetExtensionExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BFBCDC672F4953BF0066A138 /* StuFitWidgetExtensionExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		BF05778C2F4EB68D00B69330 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BF21F4942F2835DF003E0B2B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BF0577832F4EB68C00B69330;
+			remoteInfo = "StuFitWatch Watch App";
+		};
 		BFBCDC7B2F4953C10066A138 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = BF21F4942F2835DF003E0B2B /* Project object */;
@@ -23,6 +31,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		BF05778F2F4EB68D00B69330 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				BF05778E2F4EB68D00B69330 /* StuFitWatch Watch App.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BFBCDC7E2F4953C10066A138 /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -37,6 +56,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		BF0577842F4EB68C00B69330 /* StuFitWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "StuFitWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		BF21F49C2F2835DF003E0B2B /* StuFit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StuFit.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BFBCDC672F4953BF0066A138 /* StuFitWidgetExtensionExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StuFitWidgetExtensionExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		BFBCDC692F4953BF0066A138 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
@@ -54,14 +74,14 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		BF0577852F4EB68C00B69330 /* StuFitWatch Watch App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "StuFitWatch Watch App";
+			sourceTree = "<group>";
+		};
 		BF21F49E2F2835DF003E0B2B /* StuFit */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = StuFit;
-			sourceTree = "<group>";
-		};
-		BFCCDD012F49A0010066A138 /* Shared */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Shared;
 			sourceTree = "<group>";
 		};
 		BFBCDC6D2F4953BF0066A138 /* StuFitWidgetExtension */ = {
@@ -72,9 +92,21 @@
 			path = StuFitWidgetExtension;
 			sourceTree = "<group>";
 		};
+		BFCCDD012F49A0010066A138 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		BF0577812F4EB68C00B69330 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BF21F4992F2835DF003E0B2B /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -100,6 +132,7 @@
 				BF21F49E2F2835DF003E0B2B /* StuFit */,
 				BFCCDD012F49A0010066A138 /* Shared */,
 				BFBCDC6D2F4953BF0066A138 /* StuFitWidgetExtension */,
+				BF0577852F4EB68C00B69330 /* StuFitWatch Watch App */,
 				BFBCDC682F4953BF0066A138 /* Frameworks */,
 				BF21F49D2F2835DF003E0B2B /* Products */,
 			);
@@ -110,6 +143,7 @@
 			children = (
 				BF21F49C2F2835DF003E0B2B /* StuFit.app */,
 				BFBCDC672F4953BF0066A138 /* StuFitWidgetExtensionExtension.appex */,
+				BF0577842F4EB68C00B69330 /* StuFitWatch Watch App.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -126,6 +160,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		BF0577832F4EB68C00B69330 /* StuFitWatch Watch App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BF0577922F4EB68D00B69330 /* Build configuration list for PBXNativeTarget "StuFitWatch Watch App" */;
+			buildPhases = (
+				BF0577802F4EB68C00B69330 /* Sources */,
+				BF0577812F4EB68C00B69330 /* Frameworks */,
+				BF0577822F4EB68C00B69330 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				BF0577852F4EB68C00B69330 /* StuFitWatch Watch App */,
+			);
+			name = "StuFitWatch Watch App";
+			packageProductDependencies = (
+			);
+			productName = "StuFitWatch Watch App";
+			productReference = BF0577842F4EB68C00B69330 /* StuFitWatch Watch App.app */;
+			productType = "com.apple.product-type.application";
+		};
 		BF21F49B2F2835DF003E0B2B /* StuFit */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = BF21F4A72F2835E0003E0B2B /* Build configuration list for PBXNativeTarget "StuFit" */;
@@ -134,11 +190,13 @@
 				BF21F4992F2835DF003E0B2B /* Frameworks */,
 				BF21F49A2F2835DF003E0B2B /* Resources */,
 				BFBCDC7E2F4953C10066A138 /* Embed Foundation Extensions */,
+				BF05778F2F4EB68D00B69330 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				BFBCDC7C2F4953C10066A138 /* PBXTargetDependency */,
+				BF05778D2F4EB68D00B69330 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				BF21F49E2F2835DF003E0B2B /* StuFit */,
@@ -184,6 +242,9 @@
 				LastSwiftUpdateCheck = 2620;
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
+					BF0577832F4EB68C00B69330 = {
+						CreatedOnToolsVersion = 26.2;
+					};
 					BF21F49B2F2835DF003E0B2B = {
 						CreatedOnToolsVersion = 26.2;
 					};
@@ -208,11 +269,19 @@
 			targets = (
 				BF21F49B2F2835DF003E0B2B /* StuFit */,
 				BFBCDC662F4953BF0066A138 /* StuFitWidgetExtensionExtension */,
+				BF0577832F4EB68C00B69330 /* StuFitWatch Watch App */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		BF0577822F4EB68C00B69330 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BF21F49A2F2835DF003E0B2B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -230,6 +299,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		BF0577802F4EB68C00B69330 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BF21F4982F2835DF003E0B2B /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -247,6 +323,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		BF05778D2F4EB68D00B69330 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BF0577832F4EB68C00B69330 /* StuFitWatch Watch App */;
+			targetProxy = BF05778C2F4EB68D00B69330 /* PBXContainerItemProxy */;
+		};
 		BFBCDC7C2F4953C10066A138 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = BFBCDC662F4953BF0066A138 /* StuFitWidgetExtensionExtension */;
@@ -255,6 +336,74 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		BF0577902F4EB68D00B69330 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 847U7BXLK8;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = StuFitWatch;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.16pixels.StuFit;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.16pixels.StuFit.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Debug;
+		};
+		BF0577912F4EB68D00B69330 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 847U7BXLK8;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = StuFitWatch;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.16pixels.StuFit;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.16pixels.StuFit.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Release;
+		};
 		BF21F4A52F2835E0003E0B2B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -387,11 +536,13 @@
 				DEVELOPMENT_TEAM = 847U7BXLK8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "This app needs access to your health data to display your fitness information including step count and workout data.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "This app needs permission to write health data including workouts and step count to your Health app.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = audio;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -423,11 +574,13 @@
 				DEVELOPMENT_TEAM = 847U7BXLK8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "This app needs access to your health data to display your fitness information including step count and workout data.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "This app needs permission to write health data including workouts and step count to your Health app.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = audio;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -511,6 +664,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		BF0577922F4EB68D00B69330 /* Build configuration list for PBXNativeTarget "StuFitWatch Watch App" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BF0577902F4EB68D00B69330 /* Debug */,
+				BF0577912F4EB68D00B69330 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		BF21F4972F2835DF003E0B2B /* Build configuration list for PBXProject "FullFitness" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

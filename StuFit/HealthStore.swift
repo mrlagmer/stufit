@@ -38,6 +38,42 @@ struct CompletedExercise: Identifiable, Codable {
     let completedDate: Date
 }
 
+struct CompletedSetRecord: Identifiable, Codable {
+    let id: UUID
+    let workoutId: UUID
+    let workoutName: String
+    let exerciseName: String
+    let setIndex: Int
+    let targetReps: Int
+    let actualReps: Int
+    let weight: Double
+    let isWarmup: Bool
+    let didFail: Bool
+    let completedDate: Date
+}
+
+enum WorkoutSessionStatus: String, Codable {
+    case completed
+    case endedEarly
+}
+
+struct WorkoutSessionRecord: Identifiable, Codable {
+    let id: UUID
+    let workoutName: String
+    let startDate: Date
+    let endDate: Date
+    let duration: TimeInterval
+    let status: WorkoutSessionStatus
+}
+
+struct ExerciseProgressState: Codable {
+    let exerciseName: String
+    var currentTrainingWeight: Double
+    var consecutiveFailuresAtWeight: Int
+    var lastAttemptWeight: Double
+    var lastAttemptFailed: Bool
+}
+
 struct WeightsSuggestion {
     let recommendation: String
     let reasoning: String?
@@ -146,6 +182,36 @@ final class HealthStore: NSObject, ObservableObject {
             UserDefaults.standard.set(newValue, forKey: "customExerciseWeights")
         }
     }
+    @Published var completedSetRecords: [CompletedSetRecord] = [] {
+        willSet {
+            do {
+                let encoded = try JSONEncoder().encode(newValue)
+                UserDefaults.standard.set(encoded, forKey: "completedSetRecords")
+            } catch {
+                print("Error encoding completed set records: \(error.localizedDescription)")
+            }
+        }
+    }
+    @Published var exerciseProgressStates: [String: ExerciseProgressState] = [:] {
+        willSet {
+            do {
+                let encoded = try JSONEncoder().encode(newValue)
+                UserDefaults.standard.set(encoded, forKey: "exerciseProgressStates")
+            } catch {
+                print("Error encoding exercise progression state: \(error.localizedDescription)")
+            }
+        }
+    }
+    @Published var workoutSessionRecords: [WorkoutSessionRecord] = [] {
+        willSet {
+            do {
+                let encoded = try JSONEncoder().encode(newValue)
+                UserDefaults.standard.set(encoded, forKey: "workoutSessionRecords")
+            } catch {
+                print("Error encoding workout session records: \(error.localizedDescription)")
+            }
+        }
+    }
     private var currentWorkoutStartDate: Date?
     private var heartRateQuery: HKAnchoredObjectQuery?
     private var heartRateAnchor: HKQueryAnchor?
@@ -192,6 +258,33 @@ final class HealthStore: NSObject, ObservableObject {
         // Load saved custom exercise weights from UserDefaults
         if let savedWeights = UserDefaults.standard.dictionary(forKey: "customExerciseWeights") as? [String: Double] {
             self.customExerciseWeights = savedWeights
+        }
+
+        if let savedData = UserDefaults.standard.data(forKey: "completedSetRecords") {
+            do {
+                self.completedSetRecords = try JSONDecoder().decode([CompletedSetRecord].self, from: savedData)
+            } catch {
+                print("Error decoding completed set records: \(error.localizedDescription)")
+                self.completedSetRecords = []
+            }
+        }
+
+        if let savedData = UserDefaults.standard.data(forKey: "exerciseProgressStates") {
+            do {
+                self.exerciseProgressStates = try JSONDecoder().decode([String: ExerciseProgressState].self, from: savedData)
+            } catch {
+                print("Error decoding exercise progression state: \(error.localizedDescription)")
+                self.exerciseProgressStates = [:]
+            }
+        }
+
+        if let savedData = UserDefaults.standard.data(forKey: "workoutSessionRecords") {
+            do {
+                self.workoutSessionRecords = try JSONDecoder().decode([WorkoutSessionRecord].self, from: savedData)
+            } catch {
+                print("Error decoding workout session records: \(error.localizedDescription)")
+                self.workoutSessionRecords = []
+            }
         }
         configureWatchConnectivity()
         checkAuthorizationStatus()
@@ -247,10 +340,107 @@ final class HealthStore: NSObject, ObservableObject {
         )
         self.completedExercises.append(completed)
     }
+
+    func recordWorkoutSession(
+        workoutName: String,
+        startDate: Date,
+        endDate: Date,
+        duration: TimeInterval,
+        status: WorkoutSessionStatus
+    ) {
+        let record = WorkoutSessionRecord(
+            id: UUID(),
+            workoutName: workoutName,
+            startDate: startDate,
+            endDate: endDate,
+            duration: duration,
+            status: status
+        )
+        workoutSessionRecords.append(record)
+    }
     
     /// Get the number of times a specific exercise has been completed
     func getExerciseCompletionCount(_ exerciseName: String) -> Int {
         return completedExercises.filter { $0.exerciseName == exerciseName }.count
+    }
+
+    /// Returns the next target top-set weight based on exercise performance state.
+    func getNextWorkWeight(for exercise: Exercise) -> Double {
+        if let state = exerciseProgressStates[exercise.name] {
+            return max(exercise.baseWeight, exercise.roundToNearestLoadableWeight(state.currentTrainingWeight))
+        }
+
+        if let customWeight = customExerciseWeights[exercise.name] {
+            return max(exercise.baseWeight, exercise.roundToNearestLoadableWeight(customWeight))
+        }
+
+        return exercise.defaultWorkWeight(completionCount: getExerciseCompletionCount(exercise.name))
+    }
+
+    /// Persist set-level records and update progression for an exercise attempt.
+    func recordExerciseAttempt(
+        workoutId: UUID,
+        workoutName: String,
+        exercise: Exercise,
+        setRecords: [(setIndex: Int, targetReps: Int, actualReps: Int, weight: Double, isWarmup: Bool, didFail: Bool)],
+        completedDate: Date = .now
+    ) {
+        guard !setRecords.isEmpty else { return }
+
+        let persistedRecords = setRecords.map { record in
+            CompletedSetRecord(
+                id: UUID(),
+                workoutId: workoutId,
+                workoutName: workoutName,
+                exerciseName: exercise.name,
+                setIndex: record.setIndex,
+                targetReps: record.targetReps,
+                actualReps: record.actualReps,
+                weight: record.weight,
+                isWarmup: record.isWarmup,
+                didFail: record.didFail,
+                completedDate: completedDate
+            )
+        }
+        completedSetRecords.append(contentsOf: persistedRecords)
+
+        let workSetRecords = persistedRecords.filter { !$0.isWarmup }
+        guard !workSetRecords.isEmpty else { return }
+
+        let attemptWeight = exercise.roundToNearestLoadableWeight(workSetRecords[0].weight)
+        let attemptFailed = workSetRecords.contains { $0.didFail }
+
+        var state = exerciseProgressStates[exercise.name] ?? ExerciseProgressState(
+            exerciseName: exercise.name,
+            currentTrainingWeight: attemptWeight,
+            consecutiveFailuresAtWeight: 0,
+            lastAttemptWeight: attemptWeight,
+            lastAttemptFailed: false
+        )
+
+        let failedAtSameWeight = state.lastAttemptFailed && abs(state.lastAttemptWeight - attemptWeight) < 0.001
+
+        if attemptFailed {
+            if failedAtSameWeight {
+                let deloadedWeight = exercise.roundToNearestLoadableWeight(attemptWeight * 0.9)
+                state.currentTrainingWeight = max(exercise.baseWeight, deloadedWeight)
+                state.consecutiveFailuresAtWeight = 0
+            } else {
+                state.currentTrainingWeight = attemptWeight
+                state.consecutiveFailuresAtWeight = abs(state.lastAttemptWeight - attemptWeight) < 0.001
+                    ? state.consecutiveFailuresAtWeight + 1
+                    : 1
+            }
+            state.lastAttemptFailed = true
+            state.lastAttemptWeight = attemptWeight
+        } else {
+            state.currentTrainingWeight = max(exercise.baseWeight, exercise.roundToNearestLoadableWeight(attemptWeight + 2.5))
+            state.consecutiveFailuresAtWeight = 0
+            state.lastAttemptFailed = false
+            state.lastAttemptWeight = attemptWeight
+        }
+
+        exerciseProgressStates[exercise.name] = state
     }
     
     // MARK: - HealthKit Workout Session
@@ -445,6 +635,27 @@ final class HealthStore: NSObject, ObservableObject {
         updateWatchStatus(session)
 #else
         setWatchConnectionStatus(.unsupported)
+#endif
+    }
+
+    func sendWatchRestCue(_ cue: WatchRestCue) {
+#if canImport(WatchConnectivity)
+        guard let session = watchSession else { return }
+        updateWatchStatus(session)
+
+        guard session.isPaired, session.isWatchAppInstalled else { return }
+
+        let payload = cue.payload
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil) { error in
+                print("Failed to deliver watch rest cue: \(error.localizedDescription)")
+            }
+            return
+        }
+
+        session.transferUserInfo(payload)
+#else
+        _ = cue
 #endif
     }
 
@@ -917,10 +1128,34 @@ final class HealthStore: NSObject, ObservableObject {
     
     func setCustomExerciseWeights(_ weights: [String: Double]) {
         self.customExerciseWeights = weights
+
+        for (exerciseName, weight) in weights {
+            if let exercise = findExercise(named: exerciseName) {
+                let roundedWeight = exercise.roundToNearestLoadableWeight(weight)
+                exerciseProgressStates[exerciseName] = ExerciseProgressState(
+                    exerciseName: exerciseName,
+                    currentTrainingWeight: roundedWeight,
+                    consecutiveFailuresAtWeight: 0,
+                    lastAttemptWeight: roundedWeight,
+                    lastAttemptFailed: false
+                )
+            }
+        }
     }
     
     func getCustomWeight(for exerciseName: String) -> Double? {
         return customExerciseWeights[exerciseName]
+    }
+
+    private func findExercise(named exerciseName: String) -> Exercise? {
+        for template in WorkoutProgramTemplate.programs.values {
+            for workout in template.workouts {
+                if let match = workout.exercises.first(where: { $0.name == exerciseName }) {
+                    return match
+                }
+            }
+        }
+        return nil
     }
     
     // MARK: - Workout Tip Generation

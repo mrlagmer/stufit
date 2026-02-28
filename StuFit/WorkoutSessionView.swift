@@ -7,28 +7,47 @@
 
 import AVFoundation
 import SwiftUI
+import UIKit
+import UserNotifications
 
 struct WorkoutSessionView: View {
+    private struct SessionSetResult {
+        let setIndex: Int
+        let targetReps: Int
+        let actualReps: Int
+        let weight: Double
+        let isWarmup: Bool
+        let didFail: Bool
+    }
+
     @ObservedObject var healthStore: HealthStore
     var workout: ProgramWorkout
     var onBack: () -> Void = {}
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     
     @State private var currentExerciseIndex: Int = 0
     @State private var currentSetIndex: Int = 0
     @State private var elapsedTime: TimeInterval = 0
     @State private var timer: Timer?
     @State private var showingCompleteAlert = false
+    @State private var showingEndSessionConfirmation = false
+    @State private var isSessionEnding = false
     @State private var onRestTimer: Bool = false
-    @State private var restTimeRemaining: TimeInterval = 180 // 3 minutes
-    @State private var restTimer: Timer?
     @State private var restEndingAnnounced = false
+    @State private var restCompletedAnnounced = false
     @State private var speechSynthesizer = SpeechSynthesizerDelegate()
     @State private var hasAnnouncedFirstExercise = false
     @State private var warmupSetsPerExercise: [String: [WarmupSet]] = [:]
     @State private var workoutStartDate: Date = .now
     @State private var restEndsAt: Date?
+    @State private var now: Date = .now
+    @State private var workoutSessionId: UUID = UUID()
+    @State private var setResultsByExercise: [Int: [SessionSetResult]] = [:]
+    @State private var finalizedExerciseIndices: Set<Int> = []
     @ScaledMetric(relativeTo: .largeTitle) private var restClockSize: CGFloat = 52
     private let restDuration: TimeInterval = 180
+    private let restNotificationID = "workout-rest-complete"
     
     var currentExercise: Exercise? {
         guard currentExerciseIndex < workout.exercises.count else { return nil }
@@ -54,8 +73,7 @@ struct WorkoutSessionView: View {
     }
 
     private func targetWorkWeight(for exercise: Exercise) -> Double {
-        let completionCount = healthStore.getExerciseCompletionCount(exercise.name)
-        return healthStore.getCustomWeight(for: exercise.name) ?? exercise.getWeightForSet(1, completionCount: completionCount)
+        healthStore.getNextWorkWeight(for: exercise)
     }
 
     private func workSetWeight(for exercise: Exercise, workSetNumber: Int) -> Double {
@@ -97,9 +115,15 @@ struct WorkoutSessionView: View {
     }
     
     var restTimeString: String {
-        let minutes = Int(restTimeRemaining) / 60
-        let seconds = Int(restTimeRemaining) % 60
+        let roundedSeconds = max(0, Int(restTimeRemaining.rounded(.up)))
+        let minutes = roundedSeconds / 60
+        let seconds = roundedSeconds % 60
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    private var restTimeRemaining: TimeInterval {
+        guard onRestTimer, let restEndsAt else { return 0 }
+        return max(0, restEndsAt.timeIntervalSince(now))
     }
 
     private var exerciseProgress: Double {
@@ -249,40 +273,114 @@ struct WorkoutSessionView: View {
                 }
             }
         } else if currentSetIndex < totalSetsIncludingWarmup - 1 {
-            Button(action: {
-                startRestTimer()
-            }) {
-                Text("Set Complete - Start Rest")
-                    .frame(maxWidth: .infinity)
-                    .padding(12)
-                    .foregroundColor(.white)
-                    .background(Color.accentColor)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .font(.headline)
+            if isWarmupSet {
+                Button(action: {
+                    recordCurrentSetAndStartRest(didFail: false)
+                }) {
+                    Text("Set Complete - Start Rest")
+                        .frame(maxWidth: .infinity)
+                        .padding(12)
+                        .foregroundColor(.white)
+                        .background(Color.accentColor)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .font(.headline)
+                }
+            } else {
+                VStack(spacing: 10) {
+                    Button(action: {
+                        recordCurrentSetAndStartRest(didFail: false)
+                    }) {
+                        Text("Set Complete - Start Rest")
+                            .frame(maxWidth: .infinity)
+                            .padding(12)
+                            .foregroundColor(.white)
+                            .background(Color.accentColor)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .font(.headline)
+                    }
+
+                    Button(action: {
+                        recordCurrentSetAndStartRest(didFail: true)
+                    }) {
+                        Text("Mark Set Failed - Start Rest")
+                            .frame(maxWidth: .infinity)
+                            .padding(12)
+                            .foregroundColor(.white)
+                            .background(Color.red)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .font(.headline)
+                    }
+                }
             }
         } else if currentExerciseIndex < totalExercises - 1 {
-            Button(action: {
-                startRestTimer()
-            }) {
-                Text("Exercise Complete - Start Rest")
-                    .frame(maxWidth: .infinity)
-                    .padding(12)
-                    .foregroundColor(.white)
-                    .background(Color.accentColor)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .font(.headline)
+            if isWarmupSet {
+                Button(action: {
+                    recordCurrentSetAndStartRest(didFail: false)
+                }) {
+                    Text("Exercise Complete - Start Rest")
+                        .frame(maxWidth: .infinity)
+                        .padding(12)
+                        .foregroundColor(.white)
+                        .background(Color.accentColor)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .font(.headline)
+                }
+            } else {
+                VStack(spacing: 10) {
+                    Button(action: {
+                        recordCurrentSetAndStartRest(didFail: false)
+                    }) {
+                        Text("Exercise Complete - Start Rest")
+                            .frame(maxWidth: .infinity)
+                            .padding(12)
+                            .foregroundColor(.white)
+                            .background(Color.accentColor)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .font(.headline)
+                    }
+
+                    Button(action: {
+                        recordCurrentSetAndStartRest(didFail: true)
+                    }) {
+                        Text("Mark Set Failed - Start Rest")
+                            .frame(maxWidth: .infinity)
+                            .padding(12)
+                            .foregroundColor(.white)
+                            .background(Color.red)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .font(.headline)
+                    }
+                }
             }
         } else {
-            Button(action: {
-                showingCompleteAlert = true
-            }) {
-                Text("Finish Workout")
-                    .frame(maxWidth: .infinity)
-                    .padding(12)
-                    .foregroundColor(.white)
-                    .background(Color.green)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .font(.headline)
+            VStack(spacing: 10) {
+                Button(action: {
+                    recordCurrentSetIfNeeded(didFail: false)
+                    showingCompleteAlert = true
+                }) {
+                    Text("Finish Workout")
+                        .frame(maxWidth: .infinity)
+                        .padding(12)
+                        .foregroundColor(.white)
+                        .background(Color.green)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .font(.headline)
+                }
+
+                if !isWarmupSet {
+                    Button(action: {
+                        recordCurrentSetIfNeeded(didFail: true)
+                        showingCompleteAlert = true
+                    }) {
+                        Text("Mark Final Set Failed & Finish")
+                            .frame(maxWidth: .infinity)
+                            .padding(12)
+                            .foregroundColor(.white)
+                            .background(Color.red)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .font(.headline)
+                    }
+                }
             }
         }
     }
@@ -474,13 +572,16 @@ struct WorkoutSessionView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Button(action: onBack) {
+                Button(action: {
+                    showingEndSessionConfirmation = true
+                }) {
                     HStack(spacing: 4) {
                         Image(systemName: "chevron.left")
                         Text("Back")
                     }
                     .foregroundColor(.blue)
                 }
+                .disabled(isSessionEnding)
                 Spacer()
                 HStack {
                     Image(systemName: "timer")
@@ -490,6 +591,15 @@ struct WorkoutSessionView: View {
                         .monospacedDigit()
                 }
                 .foregroundColor(.secondary)
+                Spacer()
+                Button(action: {
+                    showingEndSessionConfirmation = true
+                }) {
+                    Text("End Session")
+                        .font(.subheadline)
+                        .foregroundColor(.red)
+                }
+                .disabled(isSessionEnding)
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
@@ -527,10 +637,14 @@ struct WorkoutSessionView: View {
                 actionButtonView
             }
             .padding(16)
+            .disabled(isSessionEnding)
         }
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
         .navigationBarHidden(true)
         .onAppear {
+            workoutSessionId = UUID()
+            setResultsByExercise = [:]
+            finalizedExerciseIndices = []
             // Generate warmup sets for all exercises
             for exercise in workout.exercises {
                 let workWeight = targetWorkWeight(for: exercise)
@@ -540,8 +654,10 @@ struct WorkoutSessionView: View {
             
             // Start the timer
             workoutStartDate = .now
+            now = .now
+            UIApplication.shared.isIdleTimerDisabled = true
             timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-                elapsedTime += 1
+                handleTimerTick()
             }
             Task {
                 await startLiveActivity()
@@ -558,8 +674,10 @@ struct WorkoutSessionView: View {
         }
         .onDisappear {
             timer?.invalidate()
-            restTimer?.invalidate()
+            UIApplication.shared.isIdleTimerDisabled = false
             healthStore.stopHeartRateUpdates()
+            clearScheduledRestNotification()
+            speechSynthesizer.stopAndClearQueue()
             Task {
                 await endLiveActivity()
             }
@@ -590,74 +708,232 @@ struct WorkoutSessionView: View {
                 await updateLiveActivity()
             }
         }
+        .onChange(of: scenePhase) {
+            if scenePhase == .active {
+                now = .now
+                handleRestCountdown()
+            }
+        }
         .alert("Finish Workout?", isPresented: $showingCompleteAlert) {
             Button("Save & Finish") {
-                // Track the final exercise if on the last one
-                if currentExerciseIndex == totalExercises - 1 {
-                    if let exerciseName = currentExercise?.name, currentSetIndex == totalSetsIncludingWarmup - 1 {
-                        healthStore.completeExercise(exerciseName, inWorkout: workout.name)
-                    }
+                if currentSetIndex == totalSetsIncludingWarmup - 1 {
+                    recordCurrentSetIfNeeded(didFail: false)
                 }
+                finalizeExerciseAttemptIfNeeded(at: currentExerciseIndex)
                 
                 Task {
+                    guard !isSessionEnding else { return }
+                    isSessionEnding = true
+                    timer?.invalidate()
+                    clearRestStateForSessionEnd()
                     healthStore.stopHeartRateUpdates()
-                    await healthStore.endWorkoutSession(duration: elapsedTime)
+                    let endDate = Date()
+                    let duration = max(0, endDate.timeIntervalSince(workoutStartDate))
+                    await healthStore.endWorkoutSession(duration: duration)
                     healthStore.completeWorkout(workout.name)
-                    await endLiveActivity()
-                    onBack()
+                    healthStore.recordWorkoutSession(
+                        workoutName: workout.name,
+                        startDate: workoutStartDate,
+                        endDate: endDate,
+                        duration: duration,
+                        status: .completed
+                    )
+                    await MainActor.run {
+                        returnToHome()
+                    }
+                    Task {
+                        await endLiveActivity()
+                    }
                 }
             }
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Mark this workout as complete and save it to Health?")
         }
+        .confirmationDialog("End session early?", isPresented: $showingEndSessionConfirmation) {
+            Button("Save Progress & End", role: .destructive) {
+                Task {
+                    await endSessionEarly()
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Completed sets will be saved. Unfinished exercises will not be marked complete.")
+        }
+    }
+
+    private func recordCurrentSetAndStartRest(didFail: Bool) {
+        recordCurrentSetIfNeeded(didFail: didFail)
+        startRestTimer()
+    }
+
+    private func recordCurrentSetIfNeeded(didFail: Bool) {
+        guard currentExerciseIndex < workout.exercises.count else { return }
+
+        let targetReps = currentSetReps
+        let actualReps = didFail ? max(0, targetReps - 1) : targetReps
+        let currentResult = SessionSetResult(
+            setIndex: currentSetIndex,
+            targetReps: targetReps,
+            actualReps: actualReps,
+            weight: currentSetWeight,
+            isWarmup: isWarmupSet,
+            didFail: didFail
+        )
+
+        var setResults = setResultsByExercise[currentExerciseIndex] ?? []
+        if let existingIndex = setResults.firstIndex(where: { $0.setIndex == currentSetIndex }) {
+            setResults[existingIndex] = currentResult
+        } else {
+            setResults.append(currentResult)
+        }
+        setResultsByExercise[currentExerciseIndex] = setResults.sorted(by: { $0.setIndex < $1.setIndex })
+    }
+
+    private func finalizeExerciseAttemptIfNeeded(at exerciseIndex: Int, markExerciseCompleted: Bool = true) {
+        guard !finalizedExerciseIndices.contains(exerciseIndex) else { return }
+        guard exerciseIndex < workout.exercises.count else { return }
+
+        let exercise = workout.exercises[exerciseIndex]
+        let results = setResultsByExercise[exerciseIndex] ?? []
+
+        if !results.isEmpty {
+            let mappedResults = results.map { result in
+                (
+                    setIndex: result.setIndex,
+                    targetReps: result.targetReps,
+                    actualReps: result.actualReps,
+                    weight: result.weight,
+                    isWarmup: result.isWarmup,
+                    didFail: result.didFail
+                )
+            }
+            healthStore.recordExerciseAttempt(
+                workoutId: workoutSessionId,
+                workoutName: workout.name,
+                exercise: exercise,
+                setRecords: mappedResults
+            )
+        }
+
+        if markExerciseCompleted {
+            healthStore.completeExercise(exercise.name, inWorkout: workout.name)
+        }
+        finalizedExerciseIndices.insert(exerciseIndex)
+    }
+
+    private func expectedSetCount(for exerciseIndex: Int) -> Int {
+        guard exerciseIndex < workout.exercises.count else { return 0 }
+        let exercise = workout.exercises[exerciseIndex]
+        let warmupCount = warmupSetsPerExercise[exercise.name]?.count ?? 0
+        return warmupCount + exercise.sets
+    }
+
+    private func hasCompletedAllSets(for exerciseIndex: Int) -> Bool {
+        let expected = expectedSetCount(for: exerciseIndex)
+        guard expected > 0 else { return false }
+        let completedSetIndices = Set((setResultsByExercise[exerciseIndex] ?? []).map { $0.setIndex })
+        return completedSetIndices.count >= expected
+    }
+
+    private func finalizeRemainingExerciseAttemptsForEarlyEnd() {
+        let candidateIndices = Set(setResultsByExercise.keys).subtracting(finalizedExerciseIndices)
+        for exerciseIndex in candidateIndices.sorted() {
+            finalizeExerciseAttemptIfNeeded(
+                at: exerciseIndex,
+                markExerciseCompleted: hasCompletedAllSets(for: exerciseIndex)
+            )
+        }
+    }
+
+    private func clearRestStateForSessionEnd() {
+        onRestTimer = false
+        restEndsAt = nil
+        restEndingAnnounced = false
+        restCompletedAnnounced = false
+        clearScheduledRestNotification()
+        speechSynthesizer.stopAndClearQueue()
+    }
+
+    private func endSessionEarly() async {
+        guard !isSessionEnding else { return }
+        isSessionEnding = true
+
+        timer?.invalidate()
+        clearRestStateForSessionEnd()
+        healthStore.stopHeartRateUpdates()
+        finalizeRemainingExerciseAttemptsForEarlyEnd()
+
+        let endDate = Date()
+        let duration = max(0, endDate.timeIntervalSince(workoutStartDate))
+        await healthStore.endWorkoutSession(duration: duration)
+        healthStore.completeWorkout(workout.name)
+        healthStore.recordWorkoutSession(
+            workoutName: workout.name,
+            startDate: workoutStartDate,
+            endDate: endDate,
+            duration: duration,
+            status: .endedEarly
+        )
+        await MainActor.run {
+            returnToHome()
+        }
+        Task {
+            await endLiveActivity()
+        }
+    }
+
+    @MainActor
+    private func returnToHome() {
+        onBack()
+        dismiss()
+    }
+
+    private func handleTimerTick() {
+        now = .now
+        elapsedTime = now.timeIntervalSince(workoutStartDate)
+        handleRestCountdown()
+    }
+
+    private func handleRestCountdown() {
+        guard onRestTimer else { return }
+
+        if restTimeRemaining <= 10, !restEndingAnnounced {
+            restEndingAnnounced = true
+            announceRestEnding()
+        }
+
+        if restTimeRemaining <= 0 {
+            if !restCompletedAnnounced {
+                restCompletedAnnounced = true
+                announceRestComplete()
+            }
+            completeRest()
+        }
     }
     
     private func startRestTimer() {
-        // Mark current exercise as completed only if we're on the last WORK set (not warmup)
-        if currentSetIndex == totalSetsIncludingWarmup - 1 && !isWarmupSet {
-            if let exerciseName = currentExercise?.name {
-                healthStore.completeExercise(exerciseName, inWorkout: workout.name)
-            }
-        } else if currentSetIndex == totalSetsIncludingWarmup - 1 {
-            // Last set overall, mark as completed
-            if let exerciseName = currentExercise?.name {
-                healthStore.completeExercise(exerciseName, inWorkout: workout.name)
-            }
-        }
-        
         // Announce the next set (before we move to it, so it uses current indices)
         announceNextSet()
         
         // Start rest (don't increment currentSetIndex here - that happens in completeRest)
         onRestTimer = true
-        restTimeRemaining = restDuration
         restEndsAt = Date().addingTimeInterval(restDuration)
         restEndingAnnounced = false
-        restTimer?.invalidate()
-        
-        restTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            restTimeRemaining -= 1
-            if restTimeRemaining <= 0 {
-                completeRest()
-            } else if restTimeRemaining == 10 && !restEndingAnnounced {
-                restEndingAnnounced = true
-                announceRestEnding()
-            }
-        }
+        restCompletedAnnounced = false
+        scheduleRestCompleteNotification()
+        handleRestCountdown()
     }
     
     private func completeRest() {
-        restTimer?.invalidate()
         onRestTimer = false
         restEndsAt = nil
         restEndingAnnounced = false
+        restCompletedAnnounced = false
+        clearScheduledRestNotification()
         
-        // If we're completing the last set of an exercise, mark it as completed
         if currentSetIndex == totalSetsIncludingWarmup - 1 {
-            if let exerciseName = currentExercise?.name {
-                healthStore.completeExercise(exerciseName, inWorkout: workout.name)
-            }
+            finalizeExerciseAttemptIfNeeded(at: currentExerciseIndex)
         }
         
         // Move to next set or exercise
@@ -697,7 +973,34 @@ struct WorkoutSessionView: View {
 
 extension WorkoutSessionView {
     private func announceRestEnding() {
+        healthStore.sendWatchRestCue(.tMinus10)
         speechSynthesizer.speakRestEnding()
+    }
+
+    private func announceRestComplete() {
+        healthStore.sendWatchRestCue(.restComplete)
+        speechSynthesizer.speakRestComplete()
+    }
+
+    private func scheduleRestCompleteNotification() {
+        guard let restEndsAt else { return }
+
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Rest complete"
+        content.body = "Time for your next set."
+        content.sound = .default
+
+        let triggerInterval = max(1, restEndsAt.timeIntervalSinceNow)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: triggerInterval, repeats: false)
+        let request = UNNotificationRequest(identifier: restNotificationID, content: content, trigger: trigger)
+        center.add(request)
+    }
+
+    private func clearScheduledRestNotification() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [restNotificationID])
     }
 
     private var avAustralianVoice: AVSpeechSynthesisVoice? {
@@ -772,48 +1075,159 @@ extension WorkoutSessionView {
 // MARK: - Speech Synthesizer Delegate Helper
 @MainActor
 final class SpeechSynthesizerDelegate: NSObject, @preconcurrency AVSpeechSynthesizerDelegate {
-    let synthesizer = AVSpeechSynthesizer()
+    private enum CueKind {
+        case exerciseInfo
+        case nextSetInfo
+        case restEnding
+        case restComplete
+    }
+
+    private struct SpeechCue {
+        let kind: CueKind
+        let utterance: AVSpeechUtterance
+    }
+
+    private let synthesizer = AVSpeechSynthesizer()
     var onSpeechFinished: (() -> Void)?
+    private var pendingCues: [SpeechCue] = []
+    private var isSpeechFocusHeld = false
+    private var isInterrupted = false
+
+    override init() {
+        super.init()
+        synthesizer.delegate = self
+        AudioSessionManager.shared.onInterruptionBegan = { [weak self] in
+            guard let self else { return }
+            Task { @MainActor in
+                self.handleInterruptionBegan()
+            }
+        }
+        AudioSessionManager.shared.onInterruptionEnded = { [weak self] shouldResume in
+            guard let self else { return }
+            Task { @MainActor in
+                self.handleInterruptionEnded(shouldResume: shouldResume)
+            }
+        }
+    }
     
     func speakExerciseInfo(name: String, weight: Double, plates: [Double], setType: String = "Work", reps: Int = 0) {
         let platesDescription = formatPlatesForSpeech(plates)
         let repsText = reps > 0 ? "for \(reps) reps, " : ""
         let message = "\(name). \(setType) set. Set weight to \(String(format: "%.1f", weight)) kilograms, \(repsText)\(platesDescription)"
-        speak(message)
+        enqueueSpeech(message, kind: .exerciseInfo)
     }
     
     func speakNextSetInfo(exerciseName: String, setNumber: Int, totalSets: Int, weight: Double, plates: [Double], setType: String = "Work", reps: Int = 0) {
         let platesDescription = formatPlatesForSpeech(plates)
         let repsText = reps > 0 ? "for \(reps) reps, " : ""
         let message = "Next up: \(exerciseName), \(setType) set \(setNumber) of \(totalSets). Weight: \(String(format: "%.1f", weight)) kilograms, \(repsText)\(platesDescription)"
-        speak(message)
+        enqueueSpeech(message, kind: .nextSetInfo)
     }
     
     func speakRestEnding() {
         let message = "Rest is almost over. Get ready for your next set."
-        speak(message)
+        enqueueSpeech(message, kind: .restEnding)
+    }
+
+    func speakRestComplete() {
+        let message = "Rest complete. Begin your next set."
+        enqueueSpeech(message, kind: .restComplete)
+    }
+
+    func stopAndClearQueue() {
+        pendingCues.removeAll()
+        isInterrupted = false
+        if synthesizer.isSpeaking || synthesizer.isPaused {
+            synthesizer.stopSpeaking(at: .immediate)
+        }
+        releaseSpeechFocusIfNeeded()
     }
     
-    private func speak(_ message: String) {
-        AudioSessionManager.shared.activateAudioSession()
-        synthesizer.stopSpeaking(at: .immediate)
+    private func enqueueSpeech(_ message: String, kind: CueKind) {
         let utterance = AVSpeechUtterance(string: message)
         utterance.voice = AVSpeechSynthesisVoice(language: "en-AU") ?? AVSpeechSynthesisVoice(language: "en-US")
         utterance.rate = 0.45
-        synthesizer.delegate = self
-        synthesizer.speak(utterance)
+        let cue = SpeechCue(kind: kind, utterance: utterance)
+
+        if isInterrupted || synthesizer.isSpeaking || synthesizer.isPaused {
+            enqueueOrCoalesce(cue)
+            return
+        }
+
+        startSpeaking(cue)
+    }
+
+    private func enqueueOrCoalesce(_ cue: SpeechCue) {
+        if let index = pendingCues.lastIndex(where: { $0.kind == cue.kind }) {
+            pendingCues[index] = cue
+        } else {
+            pendingCues.append(cue)
+        }
+    }
+
+    private func startSpeaking(_ cue: SpeechCue) {
+        holdSpeechFocusIfNeeded()
+        synthesizer.speak(cue.utterance)
+    }
+
+    private func holdSpeechFocusIfNeeded() {
+        guard !isSpeechFocusHeld else { return }
+        AudioSessionManager.shared.requestSpeechFocus()
+        isSpeechFocusHeld = true
+    }
+
+    private func releaseSpeechFocusIfNeeded() {
+        guard isSpeechFocusHeld else { return }
+        AudioSessionManager.shared.releaseSpeechFocus()
+        isSpeechFocusHeld = false
+    }
+
+    private func playNextCueOrReleaseFocus() {
+        guard !isInterrupted else { return }
+
+        if !pendingCues.isEmpty {
+            let next = pendingCues.removeFirst()
+            startSpeaking(next)
+            return
+        }
+
+        releaseSpeechFocusIfNeeded()
+        onSpeechFinished?()
+    }
+
+    private func handleInterruptionBegan() {
+        isInterrupted = true
+        if synthesizer.isSpeaking {
+            _ = synthesizer.pauseSpeaking(at: .word)
+        }
+    }
+
+    private func handleInterruptionEnded(shouldResume: Bool) {
+        isInterrupted = false
+
+        guard shouldResume else {
+            pendingCues.removeAll()
+            if synthesizer.isSpeaking || synthesizer.isPaused {
+                synthesizer.stopSpeaking(at: .immediate)
+            }
+            releaseSpeechFocusIfNeeded()
+            return
+        }
+
+        if synthesizer.isPaused {
+            _ = synthesizer.continueSpeaking()
+            return
+        }
+
+        playNextCueOrReleaseFocus()
     }
     
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        // Deactivate audio session after speech finishes so podcasts can resume
-        AudioSessionManager.shared.deactivateAudioSession()
-        onSpeechFinished?()
+        playNextCueOrReleaseFocus()
     }
     
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        // Also deactivate if speech is cancelled
-        AudioSessionManager.shared.deactivateAudioSession()
-        onSpeechFinished?()
+        playNextCueOrReleaseFocus()
     }
 }
 

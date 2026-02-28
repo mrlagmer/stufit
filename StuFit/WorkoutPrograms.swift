@@ -54,6 +54,22 @@ struct Exercise {
         
         return plates.sorted(by: >)
     }
+
+    /// Round a target total weight to the nearest loadable barbell weight.
+    /// The step is based on the smallest available plate pair.
+    func roundToNearestLoadableWeight(_ weight: Double) -> Double {
+        let minPlate = availablePlates.min() ?? 1.25
+        let totalStep = max(0.5, minPlate * 2.0)
+        let clamped = max(baseWeight, weight)
+        let increments = ((clamped - baseWeight) / totalStep).rounded()
+        let rounded = baseWeight + (increments * totalStep)
+        return max(baseWeight, rounded)
+    }
+
+    /// Returns the default first work-set weight for this exercise.
+    func defaultWorkWeight(completionCount: Int = 0) -> Double {
+        roundToNearestLoadableWeight(getWeightForSet(1, completionCount: completionCount))
+    }
     
     /// Generate warm-up sets following the step-up method
     /// - Parameters:

@@ -174,6 +174,10 @@ struct HomeView: View {
                                     .font(.title3)
                                     .fontWeight(.semibold)
                                 Spacer()
+                                NavigationLink(destination: WorkoutHistoryView(healthStore: healthStore)) {
+                                    Label("History", systemImage: "clock.arrow.circlepath")
+                                        .font(.subheadline)
+                                }
                                 if healthStore.selectedWorkoutType != nil {
                                     Button(action: {
                                         healthStore.resetWorkoutPreference()
@@ -205,10 +209,8 @@ struct HomeView: View {
                                     VStack(alignment: .leading, spacing: 12) {
                                         ForEach(nextWorkout.exercises.indices, id: \.self) { index in
                                             let exercise = nextWorkout.exercises[index]
-                                            let completionCount = healthStore.getExerciseCompletionCount(exercise.name)
-                                            let calculatedWeight = exercise.getWeightForSet(1, completionCount: completionCount)
-                                            let setWeight = healthStore.getCustomWeight(for: exercise.name) ?? calculatedWeight
-                                            let warmups = exercise.generateWarmupSets(setWeight, completionCount: completionCount)
+                                            let setWeight = healthStore.getNextWorkWeight(for: exercise)
+                                            let warmups = exercise.generateWarmupSets(setWeight)
                                             let plates = exercise.getPlatesForWeight(setWeight)
                                             let platesString = formatPlates(plates)
                                             
