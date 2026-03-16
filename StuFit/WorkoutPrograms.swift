@@ -16,8 +16,23 @@ struct Exercise {
     let name: String
     let sets: Int
     let reps: String
-    let baseWeight: Double = 20.0 // kg (barbell starts at 20kg)
-    let availablePlates: [Double] = [20, 10, 5, 2.5, 1.25] // sorted descending
+    
+    /// Only these lifts are treated as barbell-loaded for weight/plate calculations.
+    private var barbellExerciseNames: Set<String> {
+        ["squats", "bench press", "deadlift", "overhead press", "barbell rows", "romanian deadlift"]
+    }
+
+    var usesBarbellLoading: Bool {
+        barbellExerciseNames.contains(name.lowercased())
+    }
+
+    var baseWeight: Double {
+        usesBarbellLoading ? 20.0 : 0.0
+    }
+
+    var availablePlates: [Double] {
+        usesBarbellLoading ? [20, 10, 5, 2.5, 1.25] : []
+    }
     
     /// Calculate weight for a specific set given how many times this exercise has been done
     /// - Parameters:
@@ -25,6 +40,8 @@ struct Exercise {
     ///   - completionCount: How many times this exercise has been completed (0 = first time)
     /// - Returns: Weight in kg for this set
     func getWeightForSet(_ setNumber: Int, completionCount: Int) -> Double {
+        guard usesBarbellLoading else { return 0.0 }
+
         // Progression: top set increases by 2.5kg each cycle
         let topSetWeight = baseWeight + (Double(completionCount) * 2.5)
         
@@ -41,6 +58,8 @@ struct Exercise {
     /// - Parameter weight: The target weight in kg
     /// - Returns: Array of plate weights needed on each side
     func getPlatesForWeight(_ weight: Double) -> [Double] {
+        guard usesBarbellLoading else { return [] }
+
         let weightPerSide = (weight - baseWeight) / 2.0
         var remainingWeight = weightPerSide
         var plates: [Double] = []
@@ -58,6 +77,8 @@ struct Exercise {
     /// Round a target total weight to the nearest loadable barbell weight.
     /// The step is based on the smallest available plate pair.
     func roundToNearestLoadableWeight(_ weight: Double) -> Double {
+        guard usesBarbellLoading else { return max(0, weight) }
+
         let minPlate = availablePlates.min() ?? 1.25
         let totalStep = max(0.5, minPlate * 2.0)
         let clamped = max(baseWeight, weight)
@@ -77,6 +98,8 @@ struct Exercise {
     ///   - completionCount: How many times this exercise has been completed (0 = first time)
     /// - Returns: Array of warm-up sets in order
     func generateWarmupSets(_ workWeight: Double, completionCount: Int = 0) -> [WarmupSet] {
+        guard usesBarbellLoading else { return [] }
+
         var warmupSets: [WarmupSet] = []
         
         // Rule 1: The Empty Bar Start

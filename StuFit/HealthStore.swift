@@ -23,12 +23,53 @@ struct WeightProgram: Identifiable, Codable {
     let daysPerWeek: Int
     let createdDate: Date
     var isActive: Bool
+
+    init(id: UUID, daysPerWeek: Int, createdDate: Date, isActive: Bool) {
+        self.id = id
+        self.daysPerWeek = daysPerWeek
+        self.createdDate = createdDate
+        self.isActive = isActive
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case daysPerWeek
+        case createdDate
+        case isActive
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        self.daysPerWeek = try container.decodeIfPresent(Int.self, forKey: .daysPerWeek) ?? 3
+        self.createdDate = try container.decodeIfPresent(Date.self, forKey: .createdDate) ?? Date()
+        self.isActive = try container.decodeIfPresent(Bool.self, forKey: .isActive) ?? true
+    }
 }
 
 struct CompletedWorkout: Identifiable, Codable {
     let id: UUID
     let workoutName: String
     let completedDate: Date
+
+    init(id: UUID, workoutName: String, completedDate: Date) {
+        self.id = id
+        self.workoutName = workoutName
+        self.completedDate = completedDate
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case workoutName
+        case completedDate
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        self.workoutName = try container.decodeIfPresent(String.self, forKey: .workoutName) ?? "Workout"
+        self.completedDate = try container.decodeIfPresent(Date.self, forKey: .completedDate) ?? Date()
+    }
 }
 
 struct CompletedExercise: Identifiable, Codable {
@@ -36,6 +77,28 @@ struct CompletedExercise: Identifiable, Codable {
     let exerciseName: String
     let workoutName: String
     let completedDate: Date
+
+    init(id: UUID, exerciseName: String, workoutName: String, completedDate: Date) {
+        self.id = id
+        self.exerciseName = exerciseName
+        self.workoutName = workoutName
+        self.completedDate = completedDate
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case exerciseName
+        case workoutName
+        case completedDate
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        self.exerciseName = try container.decodeIfPresent(String.self, forKey: .exerciseName) ?? "Exercise"
+        self.workoutName = try container.decodeIfPresent(String.self, forKey: .workoutName) ?? "Workout"
+        self.completedDate = try container.decodeIfPresent(Date.self, forKey: .completedDate) ?? Date()
+    }
 }
 
 struct CompletedSetRecord: Identifiable, Codable {
@@ -50,11 +113,77 @@ struct CompletedSetRecord: Identifiable, Codable {
     let isWarmup: Bool
     let didFail: Bool
     let completedDate: Date
+
+    init(
+        id: UUID,
+        workoutId: UUID,
+        workoutName: String,
+        exerciseName: String,
+        setIndex: Int,
+        targetReps: Int,
+        actualReps: Int,
+        weight: Double,
+        isWarmup: Bool,
+        didFail: Bool,
+        completedDate: Date
+    ) {
+        self.id = id
+        self.workoutId = workoutId
+        self.workoutName = workoutName
+        self.exerciseName = exerciseName
+        self.setIndex = setIndex
+        self.targetReps = targetReps
+        self.actualReps = actualReps
+        self.weight = weight
+        self.isWarmup = isWarmup
+        self.didFail = didFail
+        self.completedDate = completedDate
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case workoutId
+        case workoutName
+        case exerciseName
+        case setIndex
+        case targetReps
+        case actualReps
+        case weight
+        case isWarmup
+        case didFail
+        case completedDate
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        self.workoutId = try container.decodeIfPresent(UUID.self, forKey: .workoutId) ?? UUID()
+        self.workoutName = try container.decodeIfPresent(String.self, forKey: .workoutName) ?? "Workout"
+        self.exerciseName = try container.decodeIfPresent(String.self, forKey: .exerciseName) ?? "Exercise"
+        self.setIndex = try container.decodeIfPresent(Int.self, forKey: .setIndex) ?? 0
+        self.targetReps = try container.decodeIfPresent(Int.self, forKey: .targetReps) ?? 0
+        self.actualReps = try container.decodeIfPresent(Int.self, forKey: .actualReps) ?? 0
+        self.weight = try container.decodeIfPresent(Double.self, forKey: .weight) ?? 0
+        self.isWarmup = try container.decodeIfPresent(Bool.self, forKey: .isWarmup) ?? false
+        self.didFail = try container.decodeIfPresent(Bool.self, forKey: .didFail) ?? false
+        self.completedDate = try container.decodeIfPresent(Date.self, forKey: .completedDate) ?? Date()
+    }
 }
 
 enum WorkoutSessionStatus: String, Codable {
     case completed
     case endedEarly
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = (try? container.decode(String.self)) ?? WorkoutSessionStatus.completed.rawValue
+        self = WorkoutSessionStatus(rawValue: rawValue) ?? .completed
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 }
 
 struct WorkoutSessionRecord: Identifiable, Codable {
@@ -64,6 +193,42 @@ struct WorkoutSessionRecord: Identifiable, Codable {
     let endDate: Date
     let duration: TimeInterval
     let status: WorkoutSessionStatus
+
+    init(
+        id: UUID,
+        workoutName: String,
+        startDate: Date,
+        endDate: Date,
+        duration: TimeInterval,
+        status: WorkoutSessionStatus
+    ) {
+        self.id = id
+        self.workoutName = workoutName
+        self.startDate = startDate
+        self.endDate = endDate
+        self.duration = duration
+        self.status = status
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case workoutName
+        case startDate
+        case endDate
+        case duration
+        case status
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        self.workoutName = try container.decodeIfPresent(String.self, forKey: .workoutName) ?? "Workout"
+        self.startDate = try container.decodeIfPresent(Date.self, forKey: .startDate) ?? Date()
+        self.endDate = try container.decodeIfPresent(Date.self, forKey: .endDate) ?? self.startDate
+        self.duration = try container.decodeIfPresent(TimeInterval.self, forKey: .duration)
+            ?? max(0, self.endDate.timeIntervalSince(self.startDate))
+        self.status = try container.decodeIfPresent(WorkoutSessionStatus.self, forKey: .status) ?? .completed
+    }
 }
 
 struct ExerciseProgressState: Codable {
@@ -72,6 +237,38 @@ struct ExerciseProgressState: Codable {
     var consecutiveFailuresAtWeight: Int
     var lastAttemptWeight: Double
     var lastAttemptFailed: Bool
+
+    init(
+        exerciseName: String,
+        currentTrainingWeight: Double,
+        consecutiveFailuresAtWeight: Int,
+        lastAttemptWeight: Double,
+        lastAttemptFailed: Bool
+    ) {
+        self.exerciseName = exerciseName
+        self.currentTrainingWeight = currentTrainingWeight
+        self.consecutiveFailuresAtWeight = consecutiveFailuresAtWeight
+        self.lastAttemptWeight = lastAttemptWeight
+        self.lastAttemptFailed = lastAttemptFailed
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case exerciseName
+        case currentTrainingWeight
+        case consecutiveFailuresAtWeight
+        case lastAttemptWeight
+        case lastAttemptFailed
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.exerciseName = try container.decodeIfPresent(String.self, forKey: .exerciseName) ?? "Exercise"
+        self.currentTrainingWeight = try container.decodeIfPresent(Double.self, forKey: .currentTrainingWeight) ?? 0
+        self.consecutiveFailuresAtWeight = try container.decodeIfPresent(Int.self, forKey: .consecutiveFailuresAtWeight) ?? 0
+        self.lastAttemptWeight = try container.decodeIfPresent(Double.self, forKey: .lastAttemptWeight)
+            ?? self.currentTrainingWeight
+        self.lastAttemptFailed = try container.decodeIfPresent(Bool.self, forKey: .lastAttemptFailed) ?? false
+    }
 }
 
 struct WeightsSuggestion {
@@ -486,6 +683,8 @@ final class HealthStore: NSObject, ObservableObject {
             DispatchQueue.main.async {
                 self.isWorkoutActive = true
             }
+            // Reset anchor to ensure all heart rate data is captured from workout start
+            heartRateAnchor = nil
             startHeartRateUpdates()
         } catch {
             print("Workout session error: \(error.localizedDescription)")
@@ -570,7 +769,14 @@ final class HealthStore: NSObject, ObservableObject {
             healthStore.stop(query)
         }
 
-        let predicate = HKQuery.predicateForSamples(withStart: Date().addingTimeInterval(-300), end: nil, options: .strictStartDate)
+        // Reset anchor when starting heart rate updates during an active workout
+        if isWorkoutActive {
+            heartRateAnchor = nil
+        }
+
+        // Use workout start date when workout is active, otherwise use 5 minutes ago
+        let startDate = isWorkoutActive ? (currentWorkoutStartDate ?? Date().addingTimeInterval(-300)) : Date().addingTimeInterval(-300)
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: nil, options: .strictStartDate)
         let query = HKAnchoredObjectQuery(type: heartRateType, predicate: predicate, anchor: heartRateAnchor, limit: HKObjectQueryNoLimit) { [weak self] _, samples, _, newAnchor, error in
             guard let self = self else { return }
             self.heartRateAnchor = newAnchor
