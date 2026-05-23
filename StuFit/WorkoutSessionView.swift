@@ -6,6 +6,7 @@
 //
 
 import AVFoundation
+import FoundationModels
 import SwiftUI
 import UIKit
 import UserNotifications
@@ -45,6 +46,10 @@ struct WorkoutSessionView: View {
     @State private var workoutSessionId: UUID = UUID()
     @State private var setResultsByExercise: [Int: [SessionSetResult]] = [:]
     @State private var finalizedExerciseIndices: Set<Int> = []
+    @State private var plankTimerStartDate: Date?
+    @State private var plankEncouragementText: String = ""
+    @State private var lastEncouragementTime: Date?
+    @State private var isGeneratingEncouragement: Bool = false
     @ScaledMetric(relativeTo: .largeTitle) private var restClockSize: CGFloat = 52
     private let restDuration: TimeInterval = 180
     private let restNotificationID = "workout-rest-complete"
@@ -102,6 +107,25 @@ struct WorkoutSessionView: View {
             guard let exercise = currentExercise else { return 0 }
             return Int(exercise.reps) ?? 0
         }
+    }
+
+    private var isCurrentExerciseTimed: Bool {
+        currentExercise?.isTimedExercise ?? false
+    }
+
+    private var plankElapsedSeconds: Int {
+        guard let start = plankTimerStartDate else { return 0 }
+        return max(0, Int(now.timeIntervalSince(start)))
+    }
+
+    private var plankTimerString: String {
+        let minutes = plankElapsedSeconds / 60
+        let seconds = plankElapsedSeconds % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+
+    private var isPlankTimerRunning: Bool {
+        plankTimerStartDate != nil
     }
     
     var timeString: String {
@@ -201,6 +225,56 @@ struct WorkoutSessionView: View {
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
     }
+
+    @ViewBuilder
+    var timedExerciseDetailView: some View {
+        if let exercise = currentExercise {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(exercise.name)
+                    .font(.title3)
+                    .fontWeight(.semibold)
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    metricTile(title: "Total Sets", value: "\(exercise.sets)")
+                    metricTile(
+                        title: "Current Set",
+                        value: "\(currentSetIndex + 1) of \(exercise.sets)"
+                    )
+                }
+
+                VStack(spacing: 8) {
+                    Text(plankTimerString)
+                        .font(.system(size: 64, weight: .bold, design: .monospaced))
+                        .monospacedDigit()
+                        .foregroundColor(isPlankTimerRunning ? .primary : .secondary)
+
+                    if let target = exercise.targetDurationSeconds {
+                        Text("Target: \(target) seconds")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+
+                if !plankEncouragementText.isEmpty {
+                    Text(plankEncouragementText)
+                        .font(.body)
+                        .italic()
+                        .foregroundColor(.accentColor)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .transition(.opacity)
+                        .animation(.easeInOut(duration: 0.3), value: plankEncouragementText)
+                }
+
+                upcomingExercisesView
+            }
+            .padding(16)
+            .background(Color(.secondarySystemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+    }
     
     @ViewBuilder
     var upcomingExercisesView: some View {
@@ -268,6 +342,32 @@ struct WorkoutSessionView: View {
                         .padding(12)
                         .foregroundColor(.primary)
                         .background(Color(.tertiarySystemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .font(.headline)
+                }
+            }
+        } else if isCurrentExerciseTimed {
+            if !isPlankTimerRunning {
+                Button(action: {
+                    startPlankTimer()
+                }) {
+                    Text("Start \(currentExercise?.name ?? "Exercise")")
+                        .frame(maxWidth: .infinity)
+                        .padding(12)
+                        .foregroundColor(.white)
+                        .background(Color.green)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .font(.headline)
+                }
+            } else {
+                Button(action: {
+                    completePlankSet()
+                }) {
+                    Text("Done - Stop Timer")
+                        .frame(maxWidth: .infinity)
+                        .padding(12)
+                        .foregroundColor(.white)
+                        .background(Color.accentColor)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .font(.headline)
                 }
@@ -431,29 +531,38 @@ struct WorkoutSessionView: View {
                                     .background(Color.orange)
                                     .cornerRadius(4)
                             }
-                            Text("\(nextReps) reps")
+                            if exercise.isTimedExercise, let target = exercise.targetDurationSeconds {
+                                Text("\(target)s hold")
+                                    .font(.headline)
+                                    .bold()
+                                    .lineLimit(1)
+                            } else {
+                                Text("\(nextReps) reps")
+                                    .font(.headline)
+                                    .bold()
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+
+                    Spacer()
+
+                    if !exercise.isTimedExercise {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Weight")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            Text(String(format: "%.1f kg", nextWeight))
                                 .font(.headline)
                                 .bold()
                                 .lineLimit(1)
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Weight")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                        Text(String(format: "%.1f kg", nextWeight))
-                            .font(.headline)
-                            .bold()
-                            .lineLimit(1)
-                        if !plates.isEmpty {
-                            Text(formatPlates(plates))
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.75)
+                            if !plates.isEmpty {
+                                Text(formatPlates(plates))
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.75)
+                            }
                         }
                     }
                 }
@@ -495,28 +604,36 @@ struct WorkoutSessionView: View {
                                     .background(Color.orange)
                                     .cornerRadius(4)
                             }
-                            Text("\(firstSetReps) reps")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                            if nextExercise.isTimedExercise, let target = nextExercise.targetDurationSeconds {
+                                Text("\(target)s hold")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Text("\(firstSetReps) reps")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
                     }
-                    
+
                     Spacer()
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Weight")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                        Text(String(format: "%.1f kg", firstSetWeight))
-                            .font(.headline)
-                            .bold()
-                            .lineLimit(1)
-                        if !plates.isEmpty {
-                            Text(formatPlates(plates))
+
+                    if !nextExercise.isTimedExercise {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Weight")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
+                            Text(String(format: "%.1f kg", firstSetWeight))
+                                .font(.headline)
+                                .bold()
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.75)
+                            if !plates.isEmpty {
+                                Text(formatPlates(plates))
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.75)
+                            }
                         }
                     }
                 }
@@ -627,7 +744,11 @@ struct WorkoutSessionView: View {
                     .background(Color(.secondarySystemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                    exerciseDetailView
+                    if isCurrentExerciseTimed {
+                        timedExerciseDetailView
+                    } else {
+                        exerciseDetailView
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
@@ -670,6 +791,37 @@ struct WorkoutSessionView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 announceExerciseInfo()
                 hasAnnouncedFirstExercise = true
+                // Send initial workout update to watch after a brief delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    sendWorkoutUpdateToWatch()
+                }
+            }
+            
+            // Listen for watch messages
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("WatchSetComplete"),
+                object: nil,
+                queue: .main
+            ) { notification in
+                if let didFail = notification.userInfo?["didFail"] as? Bool {
+                    recordCurrentSetAndStartRest(didFail: didFail)
+                }
+            }
+            
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("WatchSkipRest"),
+                object: nil,
+                queue: .main
+            ) { _ in
+                completeRest()
+            }
+            
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("WatchEndWorkout"),
+                object: nil,
+                queue: .main
+            ) { _ in
+                showingEndSessionConfirmation = true
             }
         }
         .onDisappear {
@@ -677,10 +829,12 @@ struct WorkoutSessionView: View {
             UIApplication.shared.isIdleTimerDisabled = false
             healthStore.stopHeartRateUpdates()
             clearScheduledRestNotification()
+            plankTimerStartDate = nil
             speechSynthesizer.stopAndClearQueue()
             Task {
                 await endLiveActivity()
             }
+            NotificationCenter.default.removeObserver(self)
         }
         .onChange(of: currentExerciseIndex) {
             // Announce when moving to a new exercise
@@ -692,21 +846,25 @@ struct WorkoutSessionView: View {
             Task {
                 await updateLiveActivity()
             }
+            sendWorkoutUpdateToWatch()
         }
         .onChange(of: currentSetIndex) {
             Task {
                 await updateLiveActivity()
             }
+            sendWorkoutUpdateToWatch()
         }
         .onChange(of: onRestTimer) {
             Task {
                 await updateLiveActivity()
             }
+            sendWorkoutUpdateToWatch()
         }
         .onChange(of: restEndsAt) {
             Task {
                 await updateLiveActivity()
             }
+            sendWorkoutUpdateToWatch()
         }
         .onChange(of: scenePhase) {
             if scenePhase == .active {
@@ -765,6 +923,53 @@ struct WorkoutSessionView: View {
     private func recordCurrentSetAndStartRest(didFail: Bool) {
         recordCurrentSetIfNeeded(didFail: didFail)
         startRestTimer()
+    }
+
+    private func startPlankTimer() {
+        plankTimerStartDate = now
+        plankEncouragementText = ""
+        lastEncouragementTime = nil
+        announceExerciseInfo()
+    }
+
+    private func completePlankSet() {
+        let duration = plankElapsedSeconds
+        plankTimerStartDate = nil
+        plankEncouragementText = ""
+        lastEncouragementTime = nil
+        isGeneratingEncouragement = false
+
+        recordTimedSetResult(durationSeconds: duration)
+
+        let isLastSetOfExercise = currentSetIndex >= (currentExercise?.sets ?? 1) - 1
+        let isLastExercise = currentExerciseIndex >= totalExercises - 1
+
+        if isLastSetOfExercise && isLastExercise {
+            finalizeExerciseAttemptIfNeeded(at: currentExerciseIndex)
+            showingCompleteAlert = true
+        } else {
+            startRestTimer()
+        }
+    }
+
+    private func recordTimedSetResult(durationSeconds: Int) {
+        guard let exercise = currentExercise else { return }
+        let targetDuration = exercise.targetDurationSeconds ?? 0
+        let result = SessionSetResult(
+            setIndex: currentSetIndex,
+            targetReps: targetDuration,
+            actualReps: durationSeconds,
+            weight: 0.0,
+            isWarmup: false,
+            didFail: durationSeconds < targetDuration
+        )
+        var setResults = setResultsByExercise[currentExerciseIndex] ?? []
+        if let existingIndex = setResults.firstIndex(where: { $0.setIndex == currentSetIndex }) {
+            setResults[existingIndex] = result
+        } else {
+            setResults.append(result)
+        }
+        setResultsByExercise[currentExerciseIndex] = setResults.sorted(by: { $0.setIndex < $1.setIndex })
     }
 
     private func recordCurrentSetIfNeeded(didFail: Bool) {
@@ -852,6 +1057,10 @@ struct WorkoutSessionView: View {
         restEndingAnnounced = false
         restCompletedAnnounced = false
         clearScheduledRestNotification()
+        plankTimerStartDate = nil
+        plankEncouragementText = ""
+        lastEncouragementTime = nil
+        isGeneratingEncouragement = false
         speechSynthesizer.stopAndClearQueue()
     }
 
@@ -893,6 +1102,66 @@ struct WorkoutSessionView: View {
         now = .now
         elapsedTime = now.timeIntervalSince(workoutStartDate)
         handleRestCountdown()
+        handlePlankEncouragement()
+    }
+
+    private func handlePlankEncouragement() {
+        guard isPlankTimerRunning, !isGeneratingEncouragement else { return }
+
+        let elapsed = plankElapsedSeconds
+        guard elapsed >= 10 else { return }
+
+        if let lastTime = lastEncouragementTime {
+            guard now.timeIntervalSince(lastTime) >= 15 else { return }
+        }
+
+        lastEncouragementTime = now
+        isGeneratingEncouragement = true
+
+        Task {
+            await generatePlankEncouragement(elapsedSeconds: elapsed)
+        }
+    }
+
+    private func generatePlankEncouragement(elapsedSeconds: Int) async {
+        let targetSeconds = currentExercise?.targetDurationSeconds ?? 60
+        let setNumber = currentSetIndex + 1
+        let totalSets = currentExercise?.sets ?? 3
+
+        do {
+            let model = SystemLanguageModel.default
+            guard model.isAvailable else {
+                await MainActor.run { isGeneratingEncouragement = false }
+                return
+            }
+
+            let session = LanguageModelSession()
+
+            let prompt = """
+            You are an energetic fitness coach encouraging someone holding a plank. \
+            They have been holding for \(elapsedSeconds) seconds (target: \(targetSeconds)s). \
+            This is set \(setNumber) of \(totalSets). \
+            Give ONE short encouraging sentence (under 15 words). \
+            Be specific to the time elapsed. No emojis. Vary your encouragement.
+            """
+
+            var fullResponse = ""
+            for try await partial in session.streamResponse(to: prompt) {
+                fullResponse = partial.content
+            }
+
+            let encouragement = fullResponse.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            await MainActor.run {
+                plankEncouragementText = encouragement
+                isGeneratingEncouragement = false
+                speechSynthesizer.speakPlankEncouragement(encouragement)
+            }
+        } catch {
+            await MainActor.run {
+                isGeneratingEncouragement = false
+            }
+        }
     }
 
     private func handleRestCountdown() {
@@ -931,6 +1200,10 @@ struct WorkoutSessionView: View {
         restEndingAnnounced = false
         restCompletedAnnounced = false
         clearScheduledRestNotification()
+        plankTimerStartDate = nil
+        plankEncouragementText = ""
+        lastEncouragementTime = nil
+        isGeneratingEncouragement = false
         
         if currentSetIndex == totalSetsIncludingWarmup - 1 {
             finalizeExerciseAttemptIfNeeded(at: currentExerciseIndex)
@@ -982,6 +1255,80 @@ extension WorkoutSessionView {
         speechSynthesizer.speakRestComplete()
     }
 
+    private func sendWorkoutUpdateToWatch() {
+        guard !isSessionEnding else { return }
+        guard let exercise = currentExercise else { return }
+        let plates = exercise.getPlatesForWeight(currentSetWeight)
+        let platesDescription = formatPlatesForSpeech(plates)
+
+        // Compute next set info for the watch to display during rest
+        var nextSetWeight: Double?
+        var nextSetReps: Int?
+        var nextSetPlatesDescription: String?
+        var nextSetLabel: String?
+        var nextSetIsWarmup: Bool?
+        var nextExerciseName: String?
+
+        if currentSetIndex < totalSetsIncludingWarmup - 1 {
+            let nextIdx = currentSetIndex + 1
+            if nextIdx < currentWarmupSets.count {
+                nextSetWeight = currentWarmupSets[nextIdx].weight
+                nextSetReps = currentWarmupSets[nextIdx].reps
+                nextSetIsWarmup = true
+            } else {
+                let workSetIndex = nextIdx - currentWarmupSets.count
+                nextSetWeight = workSetWeight(for: exercise, workSetNumber: workSetIndex + 1)
+                nextSetReps = Int(exercise.reps) ?? 0
+                nextSetIsWarmup = false
+            }
+            if let w = nextSetWeight {
+                nextSetPlatesDescription = formatPlatesForSpeech(exercise.getPlatesForWeight(w))
+            }
+            nextSetLabel = "Set \(nextIdx + 1)/\(totalSetsIncludingWarmup)"
+            nextExerciseName = exercise.name
+        } else if currentExerciseIndex < totalExercises - 1 {
+            let nextExercise = workout.exercises[currentExerciseIndex + 1]
+            let nextWarmups = warmupSetsPerExercise[nextExercise.name] ?? []
+            let nextTotalSets = nextWarmups.count + nextExercise.sets
+            if nextWarmups.isEmpty {
+                nextSetWeight = targetWorkWeight(for: nextExercise)
+                nextSetReps = Int(nextExercise.reps) ?? 0
+                nextSetIsWarmup = false
+            } else {
+                nextSetWeight = nextWarmups[0].weight
+                nextSetReps = nextWarmups[0].reps
+                nextSetIsWarmup = true
+            }
+            if let w = nextSetWeight {
+                nextSetPlatesDescription = formatPlatesForSpeech(nextExercise.getPlatesForWeight(w))
+            }
+            nextSetLabel = "Set 1/\(nextTotalSets)"
+            nextExerciseName = nextExercise.name
+        }
+
+        healthStore.sendWorkoutUpdate(
+            workoutName: workout.name,
+            exerciseName: exercise.name,
+            currentExerciseIndex: currentExerciseIndex,
+            totalExercises: totalExercises,
+            currentSetIndex: currentSetIndex,
+            totalSetsIncludingWarmup: totalSetsIncludingWarmup,
+            currentSetWeight: currentSetWeight,
+            currentSetReps: currentSetReps,
+            isWarmupSet: isWarmupSet,
+            isResting: onRestTimer,
+            restEndDate: restEndsAt,
+            platesDescription: platesDescription,
+            workoutStartDate: workoutStartDate,
+            nextSetWeight: nextSetWeight,
+            nextSetReps: nextSetReps,
+            nextSetPlatesDescription: nextSetPlatesDescription,
+            nextSetLabel: nextSetLabel,
+            nextExerciseName: nextExerciseName,
+            nextSetIsWarmup: nextSetIsWarmup
+        )
+    }
+
     private func scheduleRestCompleteNotification() {
         guard let restEndsAt else { return }
 
@@ -1009,10 +1356,19 @@ extension WorkoutSessionView {
     
     private func announceExerciseInfo() {
         guard let exercise = currentExercise else { return }
-        let plates = exercise.getPlatesForWeight(currentSetWeight)
-        
-        let setType = isWarmupSet ? "Warmup" : "Work"
-        speechSynthesizer.speakExerciseInfo(name: exercise.name, weight: currentSetWeight, plates: plates, setType: setType, reps: currentSetReps)
+        if exercise.isTimedExercise {
+            let target = exercise.targetDurationSeconds ?? 60
+            speechSynthesizer.speakTimedExerciseStart(
+                name: exercise.name,
+                setNumber: currentSetIndex + 1,
+                totalSets: exercise.sets,
+                targetSeconds: target
+            )
+        } else {
+            let plates = exercise.getPlatesForWeight(currentSetWeight)
+            let setType = isWarmupSet ? "Warmup" : "Work"
+            speechSynthesizer.speakExerciseInfo(name: exercise.name, weight: currentSetWeight, plates: plates, setType: setType, reps: currentSetReps)
+        }
     }
     
     private func announceNextSet() {
@@ -1021,10 +1377,21 @@ extension WorkoutSessionView {
             // More sets in this exercise
             let nextSetIndex = currentSetIndex + 1
             guard let exercise = currentExercise else { return }
-            
+
+            if exercise.isTimedExercise {
+                let target = exercise.targetDurationSeconds ?? 60
+                speechSynthesizer.speakTimedExerciseStart(
+                    name: exercise.name,
+                    setNumber: nextSetIndex + 1,
+                    totalSets: exercise.sets,
+                    targetSeconds: target
+                )
+                return
+            }
+
             let nextWeight: Double
             let nextReps: Int
-            
+
             if nextSetIndex < currentWarmupSets.count {
                 // Next set is a warmup
                 nextWeight = currentWarmupSets[nextSetIndex].weight
@@ -1035,10 +1402,10 @@ extension WorkoutSessionView {
                 nextWeight = workSetWeight(for: exercise, workSetNumber: workSetIndex + 1)
                 nextReps = Int(exercise.reps) ?? 0
             }
-            
+
             let plates = exercise.getPlatesForWeight(nextWeight)
             let setType = nextSetIndex < currentWarmupSets.count ? "Warmup" : "Work"
-            
+
             speechSynthesizer.speakNextSetInfo(
                 exerciseName: exercise.name,
                 setNumber: nextSetIndex + 1,
@@ -1051,14 +1418,26 @@ extension WorkoutSessionView {
         } else if currentExerciseIndex < totalExercises - 1 {
             // Next exercise
             let nextExercise = workout.exercises[currentExerciseIndex + 1]
+
+            if nextExercise.isTimedExercise {
+                let target = nextExercise.targetDurationSeconds ?? 60
+                speechSynthesizer.speakTimedExerciseStart(
+                    name: nextExercise.name,
+                    setNumber: 1,
+                    totalSets: nextExercise.sets,
+                    targetSeconds: target
+                )
+                return
+            }
+
             let workWeight = targetWorkWeight(for: nextExercise)
             let nextWarmups = warmupSetsPerExercise[nextExercise.name] ?? []
-            
+
             let firstSetWeight = nextWarmups.isEmpty ? workWeight : nextWarmups[0].weight
             let firstSetReps = nextWarmups.isEmpty ? (Int(nextExercise.reps) ?? 0) : nextWarmups[0].reps
             let plates = nextExercise.getPlatesForWeight(firstSetWeight)
             let setType = nextWarmups.isEmpty ? "Work" : "Warmup"
-            
+
             speechSynthesizer.speakNextSetInfo(
                 exerciseName: nextExercise.name,
                 setNumber: 1,
@@ -1080,6 +1459,8 @@ final class SpeechSynthesizerDelegate: NSObject, @preconcurrency AVSpeechSynthes
         case nextSetInfo
         case restEnding
         case restComplete
+        case plankEncouragement
+        case runSplit
     }
 
     private struct SpeechCue {
@@ -1132,6 +1513,26 @@ final class SpeechSynthesizerDelegate: NSObject, @preconcurrency AVSpeechSynthes
     func speakRestComplete() {
         let message = "Rest complete. Begin your next set."
         enqueueSpeech(message, kind: .restComplete)
+    }
+
+    func speakPlankEncouragement(_ message: String) {
+        enqueueSpeech(message, kind: .plankEncouragement)
+    }
+
+    func speakTimedExerciseStart(name: String, setNumber: Int, totalSets: Int, targetSeconds: Int) {
+        let message = "\(name). Set \(setNumber) of \(totalSets). Hold for as long as you can. Target: \(targetSeconds) seconds."
+        enqueueSpeech(message, kind: .exerciseInfo)
+    }
+
+    /// Announce a completed kilometre and its pace, then hand audio focus
+    /// back so any paused podcast resumes — same flow as the weights cues.
+    func speakRunSplit(km: Int, paceSeconds: Int) {
+        let minutes = paceSeconds / 60
+        let seconds = paceSeconds % 60
+        let secondsText = seconds == 1 ? "1 second" : "\(seconds) seconds"
+        let minutesText = minutes == 1 ? "1 minute" : "\(minutes) minutes"
+        let message = "Kilometer \(km). Pace \(minutesText) \(secondsText) per kilometer."
+        enqueueSpeech(message, kind: .runSplit)
     }
 
     func stopAndClearQueue() {

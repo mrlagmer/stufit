@@ -10,6 +10,7 @@ import SwiftUI
 struct ActivityTypeSelector: View {
     @ObservedObject var healthStore: HealthStore
     var onBack: () -> Void = {}
+    var onRunLocationSelected: () -> Void = {}
     @GestureState private var swipeOffset: CGFloat = 0
     
     private var timeOfDayText: String {
@@ -104,7 +105,14 @@ struct ActivityTypeSelector: View {
                             ForEach(availableActivities) { activity in
                                 let isSelected = healthStore.selectedActivityType == activity
                                 Button(action: {
-                                    healthStore.setActivityPreference(activity)
+                                    if activity == .run {
+                                        // Select run but clear location to prompt sub-selection
+                                        healthStore.setActivityPreference(activity)
+                                        healthStore.selectedRunLocation = nil
+                                    } else {
+                                        healthStore.selectedRunLocation = nil
+                                        healthStore.setActivityPreference(activity)
+                                    }
                                 }) {
                                     HStack(spacing: 12) {
                                         Image(systemName: activity.icon)
@@ -134,8 +142,53 @@ struct ActivityTypeSelector: View {
                                     )
                                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                                 }
+                                
+                                // Run location sub-selection (Outdoor / Treadmill)
+                                if activity == .run && isSelected {
+                                    VStack(spacing: 8) {
+                                        ForEach(RunLocationType.allCases) { location in
+                                            let isLocationSelected = healthStore.selectedRunLocation == location
+                                            Button(action: {
+                                                healthStore.setRunLocation(location)
+                                                onRunLocationSelected()
+                                            }) {
+                                                HStack(spacing: 12) {
+                                                    Image(systemName: location.icon)
+                                                        .font(.body)
+                                                        .foregroundColor(isLocationSelected ? .white : .primary)
+                                                        .frame(width: 24)
+                                                    
+                                                    Text(location.rawValue)
+                                                        .font(.subheadline)
+                                                        .fontWeight(.medium)
+                                                        .foregroundColor(isLocationSelected ? .white : .primary)
+                                                        .lineLimit(1)
+                                                    
+                                                    Spacer()
+                                                    
+                                                    if isLocationSelected {
+                                                        Image(systemName: "checkmark.circle.fill")
+                                                            .foregroundColor(.white)
+                                                    }
+                                                }
+                                                .frame(maxWidth: .infinity)
+                                                .padding(10)
+                                                .background(
+                                                    isLocationSelected ?
+                                                    Color.accentColor.opacity(0.8) :
+                                                    Color(.quaternarySystemFill)
+                                                )
+                                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                            }
+                                        }
+                                    }
+                                    .padding(.leading, 42)
+                                    .transition(.opacity.combined(with: .move(edge: .top)))
+                                }
                             }
                         }
+                        .animation(.easeInOut(duration: 0.2), value: healthStore.selectedActivityType)
+                        .animation(.easeInOut(duration: 0.2), value: healthStore.selectedRunLocation)
                     }
                     .padding(16)
                     .background(Color(.secondarySystemBackground))

@@ -21,6 +21,10 @@ struct HomeView: View {
     @State private var showingWeightsCoach = false
     @State private var showingChangeProgram = false
     @State private var showingWorkoutSession = false
+    @State private var showingRunConfig = false
+    @State private var showingDeloadFromBanner = false
+    @State private var runManager: RunSessionManager?
+    @State private var showingRunActive = false
 
     private let todaysWorkouts: [Workout] = [
         Workout(time: "07:00", title: "Morning Cardio", details: "10 min warmup • 20 min run", type: .cardio),
@@ -34,9 +38,29 @@ struct HomeView: View {
     
     private func dismissActivitySelector() {
         showingActivitySelector = false
+        showingRunConfig = false
         healthStore.resetWorkoutPreference()
     }
+
+    private func dismissRunConfig() {
+        showingRunConfig = false
+        showingActivitySelector = true
+    }
     
+    private func startRun() {
+        let outdoor = (healthStore.selectedRunLocation ?? .outdoor) == .outdoor
+        runManager = RunSessionManager(goal: healthStore.runGoal, outdoor: outdoor, healthStore: healthStore)
+        showingRunConfig = false
+        showingRunActive = true
+    }
+
+    private func finishRun() {
+        runManager?.stop()
+        runManager = nil
+        showingRunActive = false
+        healthStore.resetWorkoutPreference()
+    }
+
     private func dismissWeightsCoach() {
         showingWeightsCoach = false
         healthStore.resetWorkoutPreference()
@@ -90,8 +114,37 @@ struct HomeView: View {
                         WeightsCoachView(healthStore: healthStore, onBack: dismissWeightsCoach)
                     }
                     
+                    // Inactivity / deload banner
+                    if healthStore.authorized && healthStore.shouldShowDeloadBanner && !showingActivitySelector && !showingWeightsCoach && !showingChangeProgram && !showingRunConfig {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "figure.cooldown")
+                                    .foregroundColor(.orange)
+                                Text("Welcome Back!")
+                                    .font(.headline)
+                                    .bold()
+                                Spacer()
+                            }
+                            Text("You haven't trained in over a week. Consider deloading your weights to ease back in safely and avoid injury.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            Button(action: { showingDeloadFromBanner = true }) {
+                                Text("Deload Weights")
+                                    .frame(maxWidth: .infinity)
+                                    .padding(10)
+                                    .foregroundColor(.white)
+                                    .background(Color.orange)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                    .font(.headline)
+                            }
+                        }
+                        .padding(16)
+                        .background(Color(.secondarySystemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
+
                     // Active Weights Plan - show on home page
-                    if healthStore.authorized && healthStore.activeWeightProgram?.isActive == true && !showingActivitySelector && !showingWeightsCoach {
+                    if healthStore.authorized && healthStore.activeWeightProgram?.isActive == true && !showingActivitySelector && !showingWeightsCoach && !showingRunConfig {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -126,8 +179,44 @@ struct HomeView: View {
                     }
                     
                     // Activity type selector (after workout type selected)
-                    if healthStore.authorized && healthStore.selectedWorkoutType != nil && showingActivitySelector {
-                        ActivityTypeSelector(healthStore: healthStore, onBack: dismissActivitySelector)
+                    if healthStore.authorized && healthStore.selectedWorkoutType != nil && showingActivitySelector && !showingRunConfig {
+                        ActivityTypeSelector(healthStore: healthStore, onBack: dismissActivitySelector, onRunLocationSelected: {
+                            showingActivitySelector = false
+                            showingRunConfig = true
+                        })
+                    }
+
+                    // Run configuration (after outdoor/treadmill selected)
+                    if healthStore.authorized && showingRunConfig {
+                        RunConfigurationView(healthStore: healthStore, onBack: dismissRunConfig, onStart: startRun)
+                    }
+
+                    // Resume banner for a run that's been hidden but is still tracking
+                    if let runManager, runManager.isActive, !showingRunActive {
+                        Button(action: { showingRunActive = true }) {
+                            HStack(spacing: 10) {
+                                Image(systemName: "figure.run")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Run in progress")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                    Text(RunFormat.time(runManager.elapsed))
+                                        .font(.subheadline)
+                                        .monospacedDigit()
+                                        .foregroundColor(.white.opacity(0.9))
+                                }
+                                Spacer()
+                                Text("Resume")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundColor(.white)
+                            }
+                            .padding(16)
+                            .background(Color.accentColor)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
                     }
 
                     // Activity suggestion - removed, now shown in ActivityTypeSelector
@@ -167,7 +256,7 @@ struct HomeView: View {
                     }
 
                     // Workout plan - only show on homepage, not while selecting activity
-                    if !showingActivitySelector && !showingWeightsCoach && !showingChangeProgram {
+                    if !showingActivitySelector && !showingWeightsCoach && !showingChangeProgram && !showingRunConfig {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 Text("Today's Plan")
@@ -299,6 +388,18 @@ struct HomeView: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Home")
+        }
+        .sheet(isPresented: $showingDeloadFromBanner) {
+            DeloadOptionsView(isPresented: $showingDeloadFromBanner, healthStore: healthStore)
+        }
+        .fullScreenCover(isPresented: $showingRunActive) {
+            if let runManager {
+                RunActiveView(
+                    manager: runManager,
+                    onHide: { showingRunActive = false },
+                    onFinish: finishRun
+                )
+            }
         }
     }
 }

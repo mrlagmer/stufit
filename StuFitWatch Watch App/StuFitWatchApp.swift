@@ -9,13 +9,12 @@ import SwiftUI
 
 @main
 struct StuFitWatch_Watch_AppApp: App {
-    init() {
-        WatchCueReceiver.shared.activate()
-    }
+    @StateObject private var watchSessionManager = WatchSessionManager.shared
 
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(watchSessionManager)
         }
     }
 }

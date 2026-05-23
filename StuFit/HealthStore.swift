@@ -299,6 +299,34 @@ enum ActivityType: String, Identifiable {
     }
 }
 
+enum RunLocationType: String, Identifiable, CaseIterable {
+    case outdoor = "Outdoor"
+    case treadmill = "Treadmill"
+    
+    var id: String { self.rawValue }
+    
+    var icon: String {
+        switch self {
+        case .outdoor: return "figure.run"
+        case .treadmill: return "figure.run.square.stack"
+        }
+    }
+}
+
+enum RunGoalType: String, CaseIterable, Identifiable {
+    case distance = "Distance"
+    case time = "Time"
+    case open = "Open"
+
+    var id: String { self.rawValue }
+}
+
+struct RunGoal {
+    var type: RunGoalType = .distance
+    var distanceKm: Double = 5
+    var timeMinutes: Int = 30
+}
+
 enum WatchConnectionStatus: String {
     case unsupported
     case notPaired
@@ -331,6 +359,8 @@ final class HealthStore: NSObject, ObservableObject {
     @Published var watchConnectionStatus: WatchConnectionStatus = .unsupported
     @Published var selectedWorkoutType: WorkoutType?
     @Published var selectedActivityType: ActivityType?
+    @Published var selectedRunLocation: RunLocationType?
+    @Published var runGoal: RunGoal = RunGoal()
     @Published var suggestion: String?
     @Published var isGeneratingAdvice: Bool = false
     @Published var activeWeightProgram: WeightProgram? {
@@ -409,13 +439,19 @@ final class HealthStore: NSObject, ObservableObject {
             }
         }
     }
+    @Published var lastDeloadDate: Date? {
+        willSet {
+            if let date = newValue {
+                UserDefaults.standard.set(date.timeIntervalSince1970, forKey: "lastDeloadDate")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "lastDeloadDate")
+            }
+        }
+    }
     private var currentWorkoutStartDate: Date?
     private var heartRateQuery: HKAnchoredObjectQuery?
     private var heartRateAnchor: HKQueryAnchor?
     private let heartRateUnit = HKUnit.count().unitDivided(by: HKUnit.minute())
-    private var workoutSession: HKWorkoutSession?
-    private var workoutBuilder: HKLiveWorkoutBuilder?
-    private var workoutDataSource: HKLiveWorkoutDataSource?
 #if canImport(WatchConnectivity)
     private var watchSession: WCSession?
 #endif
@@ -483,6 +519,12 @@ final class HealthStore: NSObject, ObservableObject {
                 self.workoutSessionRecords = []
             }
         }
+        let deloadTimestamp = UserDefaults.standard.double(forKey: "lastDeloadDate")
+        if deloadTimestamp > 0 {
+            self.lastDeloadDate = Date(timeIntervalSince1970: deloadTimestamp)
+        }
+
+        migrateWeightsToValidIncrements()
         configureWatchConnectivity()
         checkAuthorizationStatus()
     }
@@ -642,123 +684,96 @@ final class HealthStore: NSObject, ObservableObject {
     
     // MARK: - HealthKit Workout Session
     
-    /// Start a HealthKit workout session
-    func startWorkoutSession(workoutName: String) async {
-        guard authorized else {
-            print("Health authorization required to start workout")
-            return
+    /// Start a HealthKit workout session.
+    /// For runs, pass `isRun: true` so the watch records a running workout
+    /// (outdoor vs treadmill via `outdoor`) instead of strength training.
+    func startWorkoutSession(workoutName: String, isRun: Bool = false, outdoor: Bool = true) async {
+        guard !isWorkoutActive else { return }
+
+        currentWorkoutStartDate = Date()
+        DispatchQueue.main.async {
+            self.isWorkoutActive = true
         }
 
-        guard HKHealthStore.isHealthDataAvailable() else {
-            print("Health data is not available on this device")
-            return
-        }
+        // Tell the watch to start the HK workout session
+        sendStartWorkoutToWatch(workoutName: workoutName, isRun: isRun, outdoor: outdoor)
 
-        guard !isWorkoutActive else {
-            return
-        }
-
-        let configuration = HKWorkoutConfiguration()
-        configuration.activityType = .traditionalStrengthTraining
-        configuration.locationType = .indoor
-
-        do {
-            let session = try HKWorkoutSession(healthStore: healthStore, configuration: configuration)
-            let builder = session.associatedWorkoutBuilder()
-            let dataSource = HKLiveWorkoutDataSource(healthStore: healthStore, workoutConfiguration: configuration)
-
-            session.delegate = self
-            builder.delegate = self
-            builder.dataSource = dataSource
-            try await builder.addMetadata([HKMetadataKeyWorkoutBrandName: workoutName])
-
-            workoutSession = session
-            workoutBuilder = builder
-            workoutDataSource = dataSource
-
-            session.startActivity(with: Date())
-            try await builder.beginCollection(at: Date())
-
-            currentWorkoutStartDate = Date()
-            DispatchQueue.main.async {
-                self.isWorkoutActive = true
-            }
-            // Reset anchor to ensure all heart rate data is captured from workout start
-            heartRateAnchor = nil
-            startHeartRateUpdates()
-        } catch {
-            print("Workout session error: \(error.localizedDescription)")
-        }
+        // Keep anchored query as fallback HR source (picks up synced data from watch)
+        heartRateAnchor = nil
+        startHeartRateUpdates()
     }
     
     /// End the current HealthKit workout session and save it
     func endWorkoutSession(duration: TimeInterval) async {
-        guard let startDate = currentWorkoutStartDate else {
-            print("No active workout session to end")
-            return
-        }
-
-        let endDate = Date()
-        workoutSession?.end()
-
-        if let builder = workoutBuilder {
-            do {
-                try await finishWorkoutCollection(using: builder, endDate: endDate)
-            } catch {
-                print("Workout collection error: \(error.localizedDescription)")
-                await saveFallbackWorkout(startDate: startDate, endDate: endDate)
-            }
-        } else {
-            await saveFallbackWorkout(startDate: startDate, endDate: endDate)
-        }
+        // Tell watch to end session and save workout to HealthKit
+        sendEndWorkoutToWatch()
 
         currentWorkoutStartDate = nil
-        workoutSession = nil
-        workoutBuilder = nil
-        workoutDataSource = nil
-
         DispatchQueue.main.async {
             self.isWorkoutActive = false
         }
     }
 
-    private func finishWorkoutCollection(using builder: HKLiveWorkoutBuilder, endDate: Date) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            builder.endCollection(withEnd: endDate) { success, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-                if !success {
-                    let endError = NSError(domain: "StuFit.HealthStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "Workout builder failed to end collection"]) as Error
-                    continuation.resume(throwing: endError)
-                    return
-                }
-                builder.finishWorkout { _, finishError in
-                    if let finishError = finishError {
-                        continuation.resume(throwing: finishError)
-                    } else {
-                        continuation.resume(returning: ())
-                    }
-                }
+    private func sendStartWorkoutToWatch(workoutName: String, isRun: Bool = false, outdoor: Bool = true) {
+        #if canImport(WatchConnectivity)
+        guard let session = watchSession else { return }
+        let payload: [String: Any] = [
+            "type": "startWorkoutSession",
+            "workoutName": workoutName,
+            "isRun": isRun,
+            "outdoor": outdoor
+        ]
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil) { error in
+                print("Failed to send startWorkoutSession: \(error.localizedDescription)")
             }
+        } else {
+            session.transferUserInfo(payload)
         }
+        #endif
     }
 
-    private func saveFallbackWorkout(startDate: Date, endDate: Date) async {
-        let configuration = HKWorkoutConfiguration()
-        configuration.activityType = .traditionalStrengthTraining
-        configuration.locationType = .indoor
+    /// Stream live run metrics to the watch so its active-run face stays in sync.
+    func sendRunUpdateToWatch(
+        goalLabel: String,
+        elapsed: TimeInterval,
+        distanceKm: Double,
+        currentKmPaceSec: Int?,
+        averagePaceSec: Int?,
+        goalKm: Double?
+    ) {
+        #if canImport(WatchConnectivity)
+        guard let session = watchSession else { return }
+        var payload: [String: Any] = [
+            "type": "runUpdate",
+            "goalLabel": goalLabel,
+            "elapsed": elapsed,
+            "distanceKm": distanceKm
+        ]
+        if let currentKmPaceSec { payload["currentKmPaceSec"] = currentKmPaceSec }
+        if let averagePaceSec { payload["averagePaceSec"] = averagePaceSec }
+        if let goalKm { payload["goalKm"] = goalKm }
 
-        do {
-            let builder = HKWorkoutBuilder(healthStore: healthStore, configuration: configuration, device: .local())
-            try await builder.beginCollection(at: startDate)
-            try await builder.endCollection(at: endDate)
-            _ = try await builder.finishWorkout()
-            print("Workout saved to HealthKit (fallback)")
-        } catch {
-            print("Error saving workout to HealthKit: \(error.localizedDescription)")
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil, errorHandler: nil)
+        } else {
+            session.transferUserInfo(payload)
         }
+        #endif
+    }
+
+    private func sendEndWorkoutToWatch() {
+        #if canImport(WatchConnectivity)
+        guard let session = watchSession else { return }
+        let payload: [String: Any] = ["type": "endWorkoutSession"]
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil) { error in
+                print("Failed to send endWorkoutSession: \(error.localizedDescription)")
+            }
+        } else {
+            session.transferUserInfo(payload)
+        }
+        #endif
     }
 
     func startHeartRateUpdates() {
@@ -865,6 +880,84 @@ final class HealthStore: NSObject, ObservableObject {
 #endif
     }
 
+    func sendWorkoutUpdate(
+        workoutName: String,
+        exerciseName: String,
+        currentExerciseIndex: Int,
+        totalExercises: Int,
+        currentSetIndex: Int,
+        totalSetsIncludingWarmup: Int,
+        currentSetWeight: Double,
+        currentSetReps: Int,
+        isWarmupSet: Bool,
+        isResting: Bool,
+        restEndDate: Date?,
+        platesDescription: String,
+        workoutStartDate: Date?,
+        nextSetWeight: Double? = nil,
+        nextSetReps: Int? = nil,
+        nextSetPlatesDescription: String? = nil,
+        nextSetLabel: String? = nil,
+        nextExerciseName: String? = nil,
+        nextSetIsWarmup: Bool? = nil
+    ) {
+#if canImport(WatchConnectivity)
+        guard let session = watchSession else { return }
+        updateWatchStatus(session)
+
+        guard session.isPaired, session.isWatchAppInstalled else { return }
+
+        var payload: [String: Any] = [
+            "type": "workoutUpdate",
+            "workoutName": workoutName,
+            "exerciseName": exerciseName,
+            "currentExerciseIndex": currentExerciseIndex,
+            "totalExercises": totalExercises,
+            "currentSetIndex": currentSetIndex,
+            "totalSetsIncludingWarmup": totalSetsIncludingWarmup,
+            "currentSetWeight": currentSetWeight,
+            "currentSetReps": currentSetReps,
+            "isWarmupSet": isWarmupSet,
+            "isResting": isResting,
+            "platesDescription": platesDescription
+        ]
+
+        if let restEndDate {
+            payload["restEndDate"] = restEndDate.timeIntervalSince1970
+        }
+        if let workoutStartDate {
+            payload["workoutStartDate"] = workoutStartDate.timeIntervalSince1970
+        }
+        if let nextSetWeight {
+            payload["nextSetWeight"] = nextSetWeight
+        }
+        if let nextSetReps {
+            payload["nextSetReps"] = nextSetReps
+        }
+        if let nextSetPlatesDescription {
+            payload["nextSetPlatesDescription"] = nextSetPlatesDescription
+        }
+        if let nextSetLabel {
+            payload["nextSetLabel"] = nextSetLabel
+        }
+        if let nextExerciseName {
+            payload["nextExerciseName"] = nextExerciseName
+        }
+        if let nextSetIsWarmup {
+            payload["nextSetIsWarmup"] = nextSetIsWarmup
+        }
+
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil) { error in
+                print("Failed to send workout update: \(error.localizedDescription)")
+            }
+            return
+        }
+
+        session.transferUserInfo(payload)
+#endif
+    }
+
     private func setWatchConnectionStatus(_ status: WatchConnectionStatus) {
         DispatchQueue.main.async {
             self.watchConnectionStatus = status
@@ -949,6 +1042,7 @@ final class HealthStore: NSObject, ObservableObject {
     func setWorkoutPreference(_ type: WorkoutType) {
         self.selectedWorkoutType = type
         self.selectedActivityType = nil
+        self.selectedRunLocation = nil
         Task {
             await suggestActivity(for: type)
         }
@@ -961,7 +1055,13 @@ final class HealthStore: NSObject, ObservableObject {
     func resetWorkoutPreference() {
         self.selectedWorkoutType = nil
         self.selectedActivityType = nil
+        self.selectedRunLocation = nil
+        self.runGoal = RunGoal()
         self.suggestion = nil
+    }
+
+    func setRunLocation(_ location: RunLocationType) {
+        self.selectedRunLocation = location
     }
 
     var heartRateStatusDescription: String {
@@ -1363,7 +1463,90 @@ final class HealthStore: NSObject, ObservableObject {
         }
         return nil
     }
-    
+
+    // MARK: - Weight Migration
+
+    private func migrateWeightsToValidIncrements() {
+        for (exerciseName, state) in exerciseProgressStates {
+            if let exercise = findExercise(named: exerciseName) {
+                let rounded = exercise.roundToNearestLoadableWeight(state.currentTrainingWeight)
+                if rounded != state.currentTrainingWeight {
+                    exerciseProgressStates[exerciseName] = ExerciseProgressState(
+                        exerciseName: exerciseName,
+                        currentTrainingWeight: rounded,
+                        consecutiveFailuresAtWeight: state.consecutiveFailuresAtWeight,
+                        lastAttemptWeight: exercise.roundToNearestLoadableWeight(state.lastAttemptWeight),
+                        lastAttemptFailed: state.lastAttemptFailed
+                    )
+                }
+            }
+        }
+
+        for (exerciseName, weight) in customExerciseWeights {
+            if let exercise = findExercise(named: exerciseName) {
+                let rounded = exercise.roundToNearestLoadableWeight(weight)
+                if rounded != weight {
+                    customExerciseWeights[exerciseName] = rounded
+                }
+            }
+        }
+    }
+
+    // MARK: - Deload
+
+    var daysSinceLastWorkout: Int? {
+        var latestDate: Date? = nil
+        if let last = workoutSessionRecords.max(by: { $0.endDate < $1.endDate }) {
+            latestDate = last.endDate
+        }
+        if let last = completedWorkouts.max(by: { $0.completedDate < $1.completedDate }) {
+            latestDate = latestDate.map { max($0, last.completedDate) } ?? last.completedDate
+        }
+        guard let last = latestDate else { return nil }
+        return Calendar.current.dateComponents([.day], from: last, to: Date()).day
+    }
+
+    var shouldShowDeloadBanner: Bool {
+        guard activeWeightProgram?.isActive == true else { return false }
+        guard let days = daysSinceLastWorkout, days >= 7 else { return false }
+        if let deloadDate = lastDeloadDate,
+           let lastWorkoutDate = workoutSessionRecords.max(by: { $0.endDate < $1.endDate })?.endDate,
+           deloadDate > lastWorkoutDate {
+            return false
+        }
+        return true
+    }
+
+    func deloadAllWeights(percent: Double) {
+        let factor = 1.0 - (percent / 100.0)
+
+        var updatedStates = exerciseProgressStates
+        for (exerciseName, state) in updatedStates {
+            if let exercise = findExercise(named: exerciseName) {
+                let newWeight = max(exercise.baseWeight, exercise.roundToNearestLoadableWeight(state.currentTrainingWeight * factor))
+                updatedStates[exerciseName] = ExerciseProgressState(
+                    exerciseName: exerciseName,
+                    currentTrainingWeight: newWeight,
+                    consecutiveFailuresAtWeight: 0,
+                    lastAttemptWeight: newWeight,
+                    lastAttemptFailed: false
+                )
+            }
+        }
+        exerciseProgressStates = updatedStates
+
+        var updatedCustom = customExerciseWeights
+        for (exerciseName, weight) in updatedCustom {
+            if exerciseProgressStates[exerciseName] == nil,
+               let exercise = findExercise(named: exerciseName) {
+                updatedCustom[exerciseName] = max(exercise.baseWeight, exercise.roundToNearestLoadableWeight(weight * factor))
+            }
+        }
+        customExerciseWeights = updatedCustom
+
+        lastDeloadDate = Date()
+    }
+
     // MARK: - Workout Tip Generation
     
     func generateWorkoutTip(for workout: ProgramWorkout) async {
@@ -1416,31 +1599,6 @@ final class HealthStore: NSObject, ObservableObject {
     }
 }
 
-extension HealthStore: HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDelegate {
-    func workoutSession(_ workoutSession: HKWorkoutSession, didChangeTo toState: HKWorkoutSessionState, from fromState: HKWorkoutSessionState, date: Date) {
-        DispatchQueue.main.async {
-            self.isWorkoutActive = (toState == .running)
-        }
-    }
-
-    func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
-        print("Workout session failed: \(error.localizedDescription)")
-    }
-
-    func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {}
-
-    func workoutBuilder(_ workoutBuilder: HKLiveWorkoutBuilder, didCollectDataOf collectedTypes: Set<HKSampleType>) {
-        guard let heartRateType = HKQuantityType.quantityType(forIdentifier: .heartRate),
-              collectedTypes.contains(heartRateType),
-              let statistics = workoutBuilder.statistics(for: heartRateType),
-              let quantity = statistics.mostRecentQuantity()
-        else {
-            return
-        }
-        updateHeartRate(with: quantity)
-    }
-}
-
 #if canImport(WatchConnectivity)
 extension HealthStore: WCSessionDelegate {
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
@@ -1464,6 +1622,50 @@ extension HealthStore: WCSessionDelegate {
 
     func sessionReachabilityDidChange(_ session: WCSession) {
         updateWatchStatus(session)
+    }
+
+    func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
+        handleWatchMessage(message)
+    }
+
+    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String : Any] = [:]) {
+        handleWatchMessage(userInfo)
+    }
+
+    private func handleWatchMessage(_ message: [String: Any]) {
+        guard let type = message["type"] as? String else { return }
+
+        DispatchQueue.main.async {
+            switch type {
+            case "setComplete":
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("WatchSetComplete"),
+                    object: nil,
+                    userInfo: ["didFail": message["didFail"] as? Bool ?? false]
+                )
+            case "skipRest":
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("WatchSkipRest"),
+                    object: nil
+                )
+            case "endWorkout":
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("WatchEndWorkout"),
+                    object: nil
+                )
+            case "heartRateUpdate":
+                if let bpm = message["heartRate"] as? Double {
+                    self.currentHeartRate = bpm
+                    self.isReceivingHeartRate = true
+                }
+            case "workoutSessionStarted":
+                print("Watch confirmed workout session started")
+            case "workoutSessionEnded":
+                print("Watch confirmed workout session ended and saved")
+            default:
+                break
+            }
+        }
     }
 }
 #endif

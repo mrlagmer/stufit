@@ -454,7 +454,8 @@ struct EditWeightsProgramView: View {
     @Binding var selectedDays: Int?
     @Binding var editedWeights: [String: Double]
     @State private var showEditWeights = false
-    
+    @State private var showDeloadOptions = false
+
     var body: some View {
         VStack(spacing: 16) {
             Text("Edit Program")
@@ -462,7 +463,7 @@ struct EditWeightsProgramView: View {
                 .bold()
                 .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
-            
+
             VStack(spacing: 12) {
                 // Change Program Option
                 Button(action: {
@@ -492,7 +493,7 @@ struct EditWeightsProgramView: View {
                     .background(Color(.secondarySystemBackground))
                     .cornerRadius(10)
                 }
-                
+
                 // Edit Weights Option
                 Button(action: {
                     // Initialize editedWeights with current weights before opening
@@ -525,11 +526,35 @@ struct EditWeightsProgramView: View {
                     .background(Color(.secondarySystemBackground))
                     .cornerRadius(10)
                 }
+
+                // Deload Weights Option
+                Button(action: { showDeloadOptions = true }) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "arrow.down.circle")
+                            .font(.headline)
+                            .foregroundColor(.orange)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Deload Weights")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            Text("Reduce all weights after a break")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(10)
+                }
             }
             .padding(16)
-            
+
             Spacer()
-            
+
             Button(action: {
                 isPresented = false
             }) {
@@ -551,6 +576,93 @@ struct EditWeightsProgramView: View {
                 editedWeights: $editedWeights,
                 parentIsPresented: $showEditWeights
             )
+        }
+        .sheet(isPresented: $showDeloadOptions) {
+            DeloadOptionsView(isPresented: $showDeloadOptions, healthStore: healthStore)
+        }
+    }
+}
+
+// MARK: - Deload Options View
+
+struct DeloadOptionsView: View {
+    @Binding var isPresented: Bool
+    @ObservedObject var healthStore: HealthStore
+    @State private var selectedPercent: Int? = nil
+    @State private var showConfirm = false
+
+    private let options: [(percent: Int, label: String, subtitle: String)] = [
+        (10, "10% Deload", "Short break — 1 to 2 weeks off"),
+        (15, "15% Deload", "Medium break — 2 to 4 weeks off"),
+        (20, "20% Deload", "Extended break — 4 or more weeks off")
+    ]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text("Deload Weights")
+                .font(.title2)
+                .bold()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+
+            Text("Reducing your training weights after a break helps you ease back in safely and avoid injury. Choose a deload amount based on how long you've been away.")
+                .font(.body)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
+
+            VStack(spacing: 12) {
+                ForEach(options, id: \.percent) { option in
+                    Button(action: {
+                        selectedPercent = option.percent
+                        showConfirm = true
+                    }) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(.orange)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(option.label)
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                Text(option.subtitle)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .background(Color(.secondarySystemBackground))
+                        .cornerRadius(10)
+                    }
+                }
+            }
+            .padding(16)
+
+            Spacer()
+
+            Button(action: { isPresented = false }) {
+                Text("Cancel")
+                    .frame(maxWidth: .infinity)
+                    .padding(12)
+                    .foregroundColor(.primary)
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(10)
+                    .font(.headline)
+            }
+            .padding(16)
+        }
+        .alert("Deload by \(selectedPercent ?? 10)%?", isPresented: $showConfirm) {
+            Button("Confirm", role: .destructive) {
+                if let percent = selectedPercent {
+                    healthStore.deloadAllWeights(percent: Double(percent))
+                }
+                isPresented = false
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("All training weights will be reduced by \(selectedPercent ?? 10)%. Failure counts will be reset. This cannot be undone.")
         }
     }
 }
@@ -612,20 +724,20 @@ struct EditWeightsDetailView: View {
                                     
                                     HStack(spacing: 12) {
                                         Button(action: {
-                                            let newWeight = max(20.0, currentWeight - 2.5)
+                                            let newWeight = max(exercise.baseWeight, currentWeight - 2.5)
                                             editedWeights[exercise.name] = newWeight
                                         }) {
                                             Image(systemName: "minus.circle.fill")
                                                 .font(.title2)
                                                 .foregroundColor(.blue)
                                         }
-                                        
+
                                         Slider(
                                             value: Binding(
                                                 get: { currentWeight },
                                                 set: { editedWeights[exercise.name] = $0 }
                                             ),
-                                            in: 20...150,
+                                            in: exercise.baseWeight...150,
                                             step: 2.5
                                         )
                                         

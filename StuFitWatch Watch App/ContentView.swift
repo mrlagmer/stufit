@@ -8,20 +8,32 @@
 import SwiftUI
 
 struct ContentView: View {
+    @EnvironmentObject private var watchSessionManager: WatchSessionManager
+    
     var body: some View {
-        VStack {
-            Image(systemName: "applewatch.radiowaves.left.and.right")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("StuFit Watch")
-            Text("Waiting for rest cues")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+        if watchSessionManager.isRunSession {
+            WatchRunSessionView()
+        } else if watchSessionManager.workoutName.isEmpty {
+            VStack {
+                Image(systemName: "applewatch.radiowaves.left.and.right")
+                    .imageScale(.large)
+                    .foregroundStyle(.tint)
+                Text("StuFit Watch")
+                Text("Waiting for workout")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            .onAppear {
+                watchSessionManager.activate()
+            }
+        } else {
+            WatchWorkoutSessionView()
         }
-        .padding()
     }
 }
 
 #Preview {
     ContentView()
+        .environmentObject(WatchSessionManager.shared)
 }

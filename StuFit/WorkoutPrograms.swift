@@ -26,6 +26,21 @@ struct Exercise {
         barbellExerciseNames.contains(name.lowercased())
     }
 
+    private var timedExerciseNames: Set<String> {
+        ["plank"]
+    }
+
+    var isTimedExercise: Bool {
+        timedExerciseNames.contains(name.lowercased())
+    }
+
+    /// For timed exercises, parse the target duration in seconds from the reps string (e.g. "60 Seconds" -> 60)
+    var targetDurationSeconds: Int? {
+        guard isTimedExercise else { return nil }
+        let digits = reps.prefix(while: { $0.isNumber })
+        return Int(digits)
+    }
+
     var baseWeight: Double {
         usesBarbellLoading ? 20.0 : 0.0
     }
@@ -45,12 +60,12 @@ struct Exercise {
         // Progression: top set increases by 2.5kg each cycle
         let topSetWeight = baseWeight + (Double(completionCount) * 2.5)
         
-        // Set 1 is at top weight, Set 2+ is 2.5kg less but never below the bar (20kg)
+        // Set 1 is at top weight, Set 2+ is 5kg less but never below the bar (20kg)
         if setNumber == 1 {
             return topSetWeight
         } else {
-            // All other sets are 2.5kg less than Set 1, but minimum is the bar weight (20kg)
-            return max(baseWeight, topSetWeight - 2.5)
+            // All other sets are 5kg less than Set 1, but minimum is the bar weight (20kg)
+            return max(baseWeight, topSetWeight - 5.0)
         }
     }
     
@@ -77,7 +92,10 @@ struct Exercise {
     /// Round a target total weight to the nearest loadable barbell weight.
     /// The step is based on the smallest available plate pair.
     func roundToNearestLoadableWeight(_ weight: Double) -> Double {
-        guard usesBarbellLoading else { return max(0, weight) }
+        guard usesBarbellLoading else {
+            let step = 2.5
+            return max(0, (weight / step).rounded() * step)
+        }
 
         let minPlate = availablePlates.min() ?? 1.25
         let totalStep = max(0.5, minPlate * 2.0)
@@ -104,10 +122,10 @@ struct Exercise {
         
         // Rule 1: The Empty Bar Start
         let startingWeight: Double
-        let isDeadliftOrRow = name.lowercased().contains("deadlift") || name.lowercased().contains("barbell row")
+        let isDeadlift = name.lowercased().contains("deadlift")
         
-        if isDeadliftOrRow {
-            // Exception: Deadlifts and Barbell Rows start at 60kg
+        if isDeadlift {
+            // Exception: Deadlifts start at 60kg
             startingWeight = 60.0
             warmupSets.append(WarmupSet(weight: startingWeight, reps: 5))
             warmupSets.append(WarmupSet(weight: startingWeight, reps: 5))
