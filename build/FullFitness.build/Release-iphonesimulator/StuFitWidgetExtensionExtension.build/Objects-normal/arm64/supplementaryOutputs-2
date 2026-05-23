@@ -1,0 +1,12 @@
+{
+  "/Users/stuartmitchell/Code/stufit/FullFitness/Shared/WatchRestCue.swift" : {
+    "abi-baseline-json" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWidgetExtensionExtension.build/Objects-normal/arm64/StuFitWidgetExtensionExtension.abi.json",
+    "const-values" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWidgetExtensionExtension.build/Objects-normal/arm64/StuFitWidgetExtensionExtension-primary.swiftconstvalues",
+    "dependencies" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWidgetExtensionExtension.build/Objects-normal/arm64/StuFitWidgetExtensionExtension-primary.d",
+    "diagnostics" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWidgetExtensionExtension.build/Objects-normal/arm64/StuFitWidgetExtensionExtension-primary.dia",
+    "objc-header" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWidgetExtensionExtension.build/Objects-normal/arm64/StuFitWidgetExtensionExtension-Swift.h",
+    "swiftdoc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWidgetExtensionExtension.build/Objects-normal/arm64/StuFitWidgetExtensionExtension.swiftdoc",
+    "swiftmodule" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWidgetExtensionExtension.build/Objects-normal/arm64/StuFitWidgetExtensionExtension.swiftmodule",
+    "swiftsourceinfo" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWidgetExtensionExtension.build/Objects-normal/arm64/StuFitWidgetExtensionExtension.swiftsourceinfo"
+  }
+}

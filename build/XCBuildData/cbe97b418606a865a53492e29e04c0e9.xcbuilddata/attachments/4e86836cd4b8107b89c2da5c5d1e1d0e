@@ -1,0 +1,41 @@
+{
+  "" : {
+    "const-values" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/StuFitWatch Watch App-primary.swiftconstvalues",
+    "dependencies" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/StuFitWatch Watch App-primary.d",
+    "diagnostics" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/StuFitWatch Watch App-primary.dia",
+    "emit-module-dependencies" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/StuFitWatch Watch App-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/StuFitWatch Watch App-primary-emit-module.dia",
+    "pch" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/StuFitWatch Watch App-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/StuFitWatch Watch App-primary.swiftdeps"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFitWatch Watch App/ContentView.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/ContentView.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/ContentView.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/ContentView.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFitWatch Watch App/StuFitWatchApp.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/StuFitWatchApp.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/StuFitWatchApp.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/StuFitWatchApp.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFitWatch Watch App/WatchSessionManager.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/WatchSessionManager.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/WatchSessionManager.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/WatchSessionManager.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFitWatch Watch App/WatchWorkoutManager.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/WatchWorkoutManager.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/WatchWorkoutManager.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/WatchWorkoutManager.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFitWatch Watch App/WatchWorkoutSessionView.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/WatchWorkoutSessionView.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/WatchWorkoutSessionView.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/WatchWorkoutSessionView.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/GeneratedAssetSymbols.o"
+  }
+}

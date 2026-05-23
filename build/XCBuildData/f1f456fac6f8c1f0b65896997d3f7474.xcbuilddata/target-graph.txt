@@ -1,0 +1,6 @@
+Target dependency graph (3 targets)
+Target 'StuFit' in project 'FullFitness'
+➜ Explicit dependency on target 'StuFitWidgetExtensionExtension' in project 'FullFitness'
+➜ Explicit dependency on target 'StuFitWatch Watch App' in project 'FullFitness'
+Target 'StuFitWatch Watch App' in project 'FullFitness' (no dependencies)
+Target 'StuFitWidgetExtensionExtension' in project 'FullFitness' (no dependencies)

@@ -1,0 +1,96 @@
+{
+  "" : {
+    "const-values" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/StuFit-primary.swiftconstvalues",
+    "dependencies" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/StuFit-primary.d",
+    "diagnostics" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/StuFit-primary.dia",
+    "emit-module-dependencies" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/StuFit-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/StuFit-primary-emit-module.dia",
+    "pch" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/StuFit-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/StuFit-primary.swiftdeps"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/Shared/WatchRestCue.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WatchRestCue.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WatchRestCue.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WatchRestCue.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/Shared/WorkoutLiveActivityAttributes.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WorkoutLiveActivityAttributes.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WorkoutLiveActivityAttributes.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WorkoutLiveActivityAttributes.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFit/ActivityTypeSelector.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/ActivityTypeSelector.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/ActivityTypeSelector.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/ActivityTypeSelector.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFit/AudioSessionManager.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/AudioSessionManager.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/AudioSessionManager.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/AudioSessionManager.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFit/ContentView.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/ContentView.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/ContentView.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/ContentView.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFit/FullFitnessApp.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/FullFitnessApp.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/FullFitnessApp.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/FullFitnessApp.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFit/HealthStore.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/HealthStore.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/HealthStore.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/HealthStore.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFit/HomeView.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/HomeView.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/HomeView.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/HomeView.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFit/PlateFormatter.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/PlateFormatter.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/PlateFormatter.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/PlateFormatter.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFit/RunConfigurationView.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/RunConfigurationView.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/RunConfigurationView.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/RunConfigurationView.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFit/WeightsCoachView.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WeightsCoachView.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WeightsCoachView.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WeightsCoachView.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFit/WorkoutHistoryView.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WorkoutHistoryView.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WorkoutHistoryView.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WorkoutHistoryView.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFit/WorkoutLiveActivity.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WorkoutLiveActivity.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WorkoutLiveActivity.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WorkoutLiveActivity.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFit/WorkoutPrograms.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WorkoutPrograms.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WorkoutPrograms.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WorkoutPrograms.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFit/WorkoutSessionView.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WorkoutSessionView.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WorkoutSessionView.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WorkoutSessionView.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFit/WorkoutTypeSelector.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WorkoutTypeSelector.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WorkoutTypeSelector.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WorkoutTypeSelector.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/GeneratedAssetSymbols.o"
+  }
+}
