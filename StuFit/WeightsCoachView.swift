@@ -181,7 +181,7 @@ struct WeightsCoachView: View {
                                                 Text("\(exercise.sets) × \(exercise.reps)")
                                                     .font(.caption)
                                                     .foregroundColor(.secondary)
-                                                Text("@ \(String(format: "%.1f", setWeight)) kg")
+                                                Text(setWeight > 0 ? "@ \(String(format: "%.1f", setWeight)) kg" : "Bodyweight")
                                                     .font(.caption)
                                                     .foregroundColor(.blue)
                                                     .lineLimit(1)
@@ -702,8 +702,9 @@ struct EditWeightsDetailView: View {
                         VStack(spacing: 16) {
                             ForEach(exercises.indices, id: \.self) { index in
                                 let exercise = exercises[index]
+                                let isAdjustable = !exercise.isBodyweightExercise && !exercise.isTimedExercise
                                 let currentWeight = editedWeights[exercise.name] ?? exercise.baseWeight
-                                
+
                                 VStack(alignment: .leading, spacing: 12) {
                                     HStack {
                                         VStack(alignment: .leading, spacing: 4) {
@@ -716,47 +717,49 @@ struct EditWeightsDetailView: View {
                                         }
                                         Spacer()
                                         VStack(alignment: .trailing, spacing: 4) {
-                                            Text("\(String(format: "%.1f", currentWeight)) kg")
+                                            Text(isAdjustable ? "\(String(format: "%.1f", currentWeight)) kg" : "Bodyweight")
                                                 .font(.headline)
                                                 .foregroundColor(.blue)
                                         }
                                     }
-                                    
-                                    HStack(spacing: 12) {
-                                        Button(action: {
-                                            let newWeight = max(exercise.baseWeight, currentWeight - 2.5)
-                                            editedWeights[exercise.name] = newWeight
-                                        }) {
-                                            Image(systemName: "minus.circle.fill")
-                                                .font(.title2)
-                                                .foregroundColor(.blue)
+
+                                    if isAdjustable {
+                                        HStack(spacing: 12) {
+                                            Button(action: {
+                                                let newWeight = max(exercise.baseWeight, currentWeight - 2.5)
+                                                editedWeights[exercise.name] = newWeight
+                                            }) {
+                                                Image(systemName: "minus.circle.fill")
+                                                    .font(.title2)
+                                                    .foregroundColor(.blue)
+                                            }
+
+                                            Slider(
+                                                value: Binding(
+                                                    get: { currentWeight },
+                                                    set: { editedWeights[exercise.name] = $0 }
+                                                ),
+                                                in: exercise.baseWeight...150,
+                                                step: 2.5
+                                            )
+
+                                            Button(action: {
+                                                let newWeight = min(150.0, currentWeight + 2.5)
+                                                editedWeights[exercise.name] = newWeight
+                                            }) {
+                                                Image(systemName: "plus.circle.fill")
+                                                    .font(.title2)
+                                                    .foregroundColor(.blue)
+                                            }
                                         }
 
-                                        Slider(
-                                            value: Binding(
-                                                get: { currentWeight },
-                                                set: { editedWeights[exercise.name] = $0 }
-                                            ),
-                                            in: exercise.baseWeight...150,
-                                            step: 2.5
-                                        )
-                                        
-                                        Button(action: {
-                                            let newWeight = min(150.0, currentWeight + 2.5)
-                                            editedWeights[exercise.name] = newWeight
-                                        }) {
-                                            Image(systemName: "plus.circle.fill")
-                                                .font(.title2)
-                                                .foregroundColor(.blue)
+                                        let plates = exercise.getPlatesForWeight(currentWeight)
+                                        if !plates.isEmpty {
+                                            let platesString = formatPlates(plates)
+                                            Text("Plates: \(platesString)")
+                                                .font(.caption2)
+                                                .foregroundColor(.secondary)
                                         }
-                                    }
-                                    
-                                    let plates = exercise.getPlatesForWeight(currentWeight)
-                                    if !plates.isEmpty {
-                                        let platesString = formatPlates(plates)
-                                        Text("Plates: \(platesString)")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
                                     }
                                 }
                                 .padding(16)

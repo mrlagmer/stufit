@@ -7,6 +7,11 @@
 
 import Foundation
 
+/// Format a set weight for display. Zero means no external load (bodyweight).
+func formatSetWeight(_ weight: Double) -> String {
+    weight > 0 ? String(format: "%.1f kg", weight) : "Bodyweight"
+}
+
 /// Format plate array into readable string
 func formatPlates(_ plates: [Double]) -> String {
     guard !plates.isEmpty else { return "Bar only" }

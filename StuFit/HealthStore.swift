@@ -605,6 +605,10 @@ final class HealthStore: NSObject, ObservableObject {
 
     /// Returns the next target top-set weight based on exercise performance state.
     func getNextWorkWeight(for exercise: Exercise) -> Double {
+        // Bodyweight exercises carry no external load, regardless of any
+        // stray progression state or custom weight saved for them.
+        guard !exercise.isBodyweightExercise else { return 0.0 }
+
         if let state = exerciseProgressStates[exercise.name] {
             return max(exercise.baseWeight, exercise.roundToNearestLoadableWeight(state.currentTrainingWeight))
         }
@@ -645,6 +649,10 @@ final class HealthStore: NSObject, ObservableObject {
 
         let workSetRecords = persistedRecords.filter { !$0.isWarmup }
         guard !workSetRecords.isEmpty else { return }
+
+        // No weight progression for bodyweight exercises — adding 2.5kg to a
+        // sit up or pull up would invent a load that doesn't exist.
+        guard !exercise.isBodyweightExercise else { return }
 
         let attemptWeight = exercise.roundToNearestLoadableWeight(workSetRecords[0].weight)
         let attemptFailed = workSetRecords.contains { $0.didFail }

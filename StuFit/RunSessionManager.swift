@@ -51,6 +51,8 @@ final class RunSessionManager: NSObject, ObservableObject {
     @Published private(set) var paused: Bool = false
     @Published private(set) var isActive: Bool = false
     @Published private(set) var gpsStrength: GPSStrength = .acquiring
+    @Published private(set) var cadenceSpm: Int?
+    @Published private(set) var steps: Int = 0
 
     // MARK: - Configuration
 
@@ -73,8 +75,21 @@ final class RunSessionManager: NSObject, ObservableObject {
 
     private let locationManager = CLLocationManager()
     private var lastLocation: CLLocation?
+    // Fixes timestamped before this are pre-run/pre-resume cache and ignored.
+    private var trackingStartedAt: Date = .distantPast
     private let pedometer = CMPedometer()
     private var pedometerStartDate: Date?
+
+    // Cadence/steps captured on the phone (CMPedometer) for both outdoor and
+    // treadmill runs, and HR recorded from the live stream the watch relays.
+    // These are saved onto the phone's authoritative workout so the run lands
+    // in Health with distance + cadence + HR even though the watch records none.
+    private var stepSamples: [HKQuantitySample] = []
+    private var lastStepTotal: Double = 0
+    private var lastStepSampleAt: Date?
+    private var resyncSteps = false
+    private var hrSamples: [HKQuantitySample] = []
+    private var lastRecordedHR: Double?
 
     private var lastWatchUpdate: Date = .distantPast
 
@@ -149,9 +164,10 @@ final class RunSessionManager: NSObject, ObservableObject {
 
         if outdoor {
             startLocationTracking()
-        } else {
-            startPedometerTracking()
         }
+        // Always capture cadence + steps from the phone; treadmill also takes
+        // its distance from here (outdoor distance comes from GPS).
+        startStepTracking()
 
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
@@ -177,7 +193,11 @@ final class RunSessionManager: NSObject, ObservableObject {
         pauseStartedAt = nil
         paused = false
         lastLocation = nil   // don't count distance jumped while paused
-        if outdoor { locationManager.startUpdatingLocation() }
+        resyncSteps = true   // don't count steps taken while paused
+        if outdoor {
+            trackingStartedAt = Date()   // ignore fixes buffered during the pause
+            locationManager.startUpdatingLocation()
+        }
     }
 
     func stop() {
@@ -201,6 +221,8 @@ final class RunSessionManager: NSObject, ObservableObject {
             HKObjectType.workoutType(),
             HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning)!,
             HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned)!,
+            HKQuantityType.quantityType(forIdentifier: .stepCount)!,
+            HKQuantityType.quantityType(forIdentifier: .heartRate)!,
             HKSeriesType.workoutRoute()
         ]
         let begin = startDate
@@ -245,6 +267,8 @@ final class RunSessionManager: NSObject, ObservableObject {
             let quantity = HKQuantity(unit: .kilocalorie(), doubleValue: kcal)
             samples.append(HKQuantitySample(type: energyType, quantity: quantity, start: start, end: end))
         }
+        // Cadence/steps captured on the phone during the run.
+        samples.append(contentsOf: stepSamples)
 
         let finalize: () -> Void = {
             builder.endCollection(withEnd: end) { _, _ in
@@ -256,14 +280,20 @@ final class RunSessionManager: NSObject, ObservableObject {
             }
         }
 
-        // Pull HR samples the watch streamed into HealthKit during the run and
-        // attach them to this workout so Apple Health shows HR for the activity.
-        fetchHeartRateSamples(start: start, end: end) { hrSamples in
-            let all = samples + hrSamples
-            if all.isEmpty {
-                finalize()
-            } else {
-                builder.add(all) { _, _ in finalize() }
+        let recordedHR = hrSamples
+        if !recordedHR.isEmpty {
+            // Prefer HR recorded live from the watch's stream — the watch's own
+            // run workout is discarded, so HealthKit holds no HR to fetch.
+            builder.add(samples + recordedHR) { _, _ in finalize() }
+        } else {
+            // Fallback for older data paths: pull whatever HR is in HealthKit.
+            fetchHeartRateSamples(start: start, end: end) { fetched in
+                let all = samples + fetched
+                if all.isEmpty {
+                    finalize()
+                } else {
+                    builder.add(all) { _, _ in finalize() }
+                }
             }
         }
     }
@@ -293,21 +323,86 @@ final class RunSessionManager: NSObject, ObservableObject {
             locationManager.allowsBackgroundLocationUpdates = true
             locationManager.pausesLocationUpdatesAutomatically = false
         }
+        // Surface the live route in the system location indicator so iOS keeps
+        // delivering fixes while backgrounded with the screen off.
+        locationManager.showsBackgroundLocationIndicator = true
+        trackingStartedAt = Date()
         locationManager.startUpdatingLocation()
     }
 
-    private func startPedometerTracking() {
-        guard CMPedometer.isDistanceAvailable() else { return }
-        pedometerStartDate = Date()
-        pedometer.startUpdates(from: pedometerStartDate ?? Date()) { [weak self] data, _ in
-            guard let data, let meters = data.distance?.doubleValue else { return }
+    private func startStepTracking() {
+        guard CMPedometer.isStepCountingAvailable() || CMPedometer.isDistanceAvailable() else { return }
+        let start = Date()
+        pedometerStartDate = start
+        lastStepSampleAt = start
+        pedometer.startUpdates(from: start) { [weak self] data, _ in
+            guard let data else { return }
             Task { @MainActor in
-                guard let self, !self.paused else { return }
-                self.distanceMeters = meters
-                self.distanceKm = meters / 1000
-                self.checkForKmCompletion()
+                guard let self, self.isActive, !self.paused else { return }
+                self.handlePedometer(data)
             }
         }
+    }
+
+    private func handlePedometer(_ data: CMPedometerData) {
+        let now = Date()
+
+        // Live cadence for the UI (currentCadence is steps/second).
+        if let cadence = data.currentCadence?.doubleValue {
+            cadenceSpm = Int((cadence * 60).rounded())
+        }
+
+        let total = data.numberOfSteps.doubleValue
+        steps = Int(total)
+
+        // After a resume, drop the interval that spans the pause so paused steps
+        // aren't emitted as a single inflated-cadence sample.
+        if resyncSteps {
+            resyncSteps = false
+            lastStepTotal = total
+            lastStepSampleAt = now
+            return
+        }
+
+        // Record per-interval stepCount samples so the saved workout carries a
+        // cadence trace (the bridge/Health derive cadence from step samples).
+        let delta = total - lastStepTotal
+        if delta >= 1, let from = lastStepSampleAt, now > from,
+           let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount) {
+            let sample = HKQuantitySample(
+                type: stepType,
+                quantity: HKQuantity(unit: .count(), doubleValue: delta),
+                start: from,
+                end: now
+            )
+            stepSamples.append(sample)
+            lastStepTotal = total
+            lastStepSampleAt = now
+        }
+
+        // Treadmill distance comes from the pedometer; outdoor uses GPS.
+        if !outdoor, let meters = data.distance?.doubleValue {
+            distanceMeters = meters
+            distanceKm = meters / 1000
+            checkForKmCompletion()
+        }
+    }
+
+    /// Record an HR sample from the value the watch streams in (the watch's own
+    /// run workout is discarded, so its HR isn't otherwise persisted). Called
+    /// each tick; only stores a new sample when the value changes.
+    private func recordHeartRateSample() {
+        guard let bpm = heartRate, bpm > 30, bpm < 240, bpm != lastRecordedHR else { return }
+        lastRecordedHR = bpm
+        guard let hrType = HKQuantityType.quantityType(forIdentifier: .heartRate) else { return }
+        let now = Date()
+        let sample = HKQuantitySample(
+            type: hrType,
+            quantity: HKQuantity(unit: HKUnit.count().unitDivided(by: .minute()), doubleValue: bpm),
+            start: now,
+            end: now
+        )
+        hrSamples.append(sample)
     }
 
     // MARK: - Timer tick
@@ -318,6 +413,7 @@ final class RunSessionManager: NSObject, ObservableObject {
         // Pedometer/location push distance asynchronously; recompute km here too
         // so a boundary crossed between updates is still caught promptly.
         checkForKmCompletion()
+        recordHeartRateSample()
         pushWatchUpdate()
     }
 
@@ -361,17 +457,25 @@ extension RunSessionManager: CLLocationManagerDelegate {
             guard isActive, !paused else { return }
             var routeFixes: [CLLocation] = []
             for location in locations {
-                // Ignore stale or low-accuracy fixes.
+                // Reject low-accuracy fixes and any cached fix recorded before
+                // this tracking segment began. We deliberately do NOT reject by
+                // "age": when backgrounded iOS delivers fixes in coalesced
+                // bursts that are several seconds old but completely valid —
+                // discarding them was dropping real distance and gapping the
+                // route (which Strava then flagged as bad data).
                 guard location.horizontalAccuracy >= 0,
                       location.horizontalAccuracy < 50,
-                      abs(location.timestamp.timeIntervalSinceNow) < 5 else { continue }
-
-                updateGPSStrength(from: location.horizontalAccuracy)
-                routeFixes.append(location)
+                      location.timestamp >= trackingStartedAt else { continue }
 
                 if let last = lastLocation {
+                    let dt = location.timestamp.timeIntervalSince(last.timestamp)
+                    // Skip out-of-order / duplicate timestamps from batched delivery.
+                    guard dt > 0 else { continue }
                     let step = location.distance(from: last)
-                    // Drop GPS jitter while standing still.
+                    // Reject physically impossible jumps (> 12 m/s ≈ 43 km/h):
+                    // a GPS glitch that would inflate distance and corrupt the route.
+                    guard step / dt < 12.0 else { continue }
+                    // Drop sub-metre jitter while standing still.
                     if step > 1.0 {
                         distanceMeters += step
                         distanceKm = distanceMeters / 1000
@@ -379,6 +483,8 @@ extension RunSessionManager: CLLocationManagerDelegate {
                     }
                 }
                 lastLocation = location
+                updateGPSStrength(from: location.horizontalAccuracy)
+                routeFixes.append(location)
             }
             if !routeFixes.isEmpty {
                 routeBuilder?.insertRouteData(routeFixes) { _, _ in }

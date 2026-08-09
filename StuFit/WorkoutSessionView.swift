@@ -7,6 +7,7 @@
 
 import AVFoundation
 import FoundationModels
+import KittenTTS
 import SwiftUI
 import UIKit
 import UserNotifications
@@ -47,6 +48,7 @@ struct WorkoutSessionView: View {
     @State private var setResultsByExercise: [Int: [SessionSetResult]] = [:]
     @State private var finalizedExerciseIndices: Set<Int> = []
     @State private var plankTimerStartDate: Date?
+    @State private var celebratedRecord: (exerciseName: String, weight: Double)?
     @State private var plankEncouragementText: String = ""
     @State private var lastEncouragementTime: Date?
     @State private var isGeneratingEncouragement: Bool = false
@@ -86,7 +88,8 @@ struct WorkoutSessionView: View {
         if workSetNumber <= 1 {
             return topSetWeight
         }
-        return max(exercise.baseWeight, topSetWeight - 2.5)
+        // Back-off sets are 5kg below the top set, but never below the empty bar
+        return max(exercise.baseWeight, topSetWeight - 5.0)
     }
     
     var currentSetWeight: Double {
@@ -105,8 +108,14 @@ struct WorkoutSessionView: View {
             return currentWarmupSets[currentSetIndex].reps
         } else {
             guard let exercise = currentExercise else { return 0 }
-            return Int(exercise.reps) ?? 0
+            return exercise.repsPerSet ?? 0
         }
+    }
+
+    /// Short label for a work set's rep target, keeping non-numeric targets
+    /// like "Max Reps" or "8 Each Leg" readable.
+    private func workSetRepsLabel(for exercise: Exercise) -> String {
+        Int(exercise.reps) != nil ? "\(exercise.reps) reps" : exercise.reps
     }
 
     private var isCurrentExerciseTimed: Bool {
@@ -209,12 +218,12 @@ struct WorkoutSessionView: View {
                         accent: isWarmupSet ? .orange : .primary
                     )
 
-                    metricTile(title: "Reps", value: "\(currentSetReps)")
+                    metricTile(title: "Reps", value: isWarmupSet ? "\(currentSetReps)" : exercise.reps)
 
                     metricTile(
                         title: "Weight",
-                        value: String(format: "%.1f kg", currentSetWeight),
-                        subtitle: plates.isEmpty ? nil : formatPlates(plates)
+                        value: formatSetWeight(currentSetWeight),
+                        subtitle: exercise.usesBarbellLoading ? formatPlates(plates) : nil
                     )
                 }
                 
@@ -501,7 +510,7 @@ struct WorkoutSessionView: View {
 
                 // Next is a work set
                 let workSetIndex = nextSetIndex - currentWarmups.count
-                return (workSetWeight(for: exercise, workSetNumber: workSetIndex + 1), Int(exercise.reps) ?? 0, false)
+                return (workSetWeight(for: exercise, workSetNumber: workSetIndex + 1), exercise.repsPerSet ?? 0, false)
             }()
             let nextWeight = nextSetInfo.weight
             let nextReps = nextSetInfo.reps
@@ -537,7 +546,7 @@ struct WorkoutSessionView: View {
                                     .bold()
                                     .lineLimit(1)
                             } else {
-                                Text("\(nextReps) reps")
+                                Text(nextIsWarmup ? "\(nextReps) reps" : workSetRepsLabel(for: exercise))
                                     .font(.headline)
                                     .bold()
                                     .lineLimit(1)
@@ -552,7 +561,7 @@ struct WorkoutSessionView: View {
                             Text("Weight")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
-                            Text(String(format: "%.1f kg", nextWeight))
+                            Text(formatSetWeight(nextWeight))
                                 .font(.headline)
                                 .bold()
                                 .lineLimit(1)
@@ -577,7 +586,7 @@ struct WorkoutSessionView: View {
             let nextWarmups = warmupSetsPerExercise[nextExercise.name] ?? []
             
             let firstSetWeight = nextWarmups.isEmpty ? workWeight : nextWarmups[0].weight
-            let firstSetReps = nextWarmups.isEmpty ? (Int(nextExercise.reps) ?? 0) : nextWarmups[0].reps
+            let firstSetReps = nextWarmups.isEmpty ? (nextExercise.repsPerSet ?? 0) : nextWarmups[0].reps
             let firstSetIsWarmup = !nextWarmups.isEmpty
             let plates = nextExercise.getPlatesForWeight(firstSetWeight)
             
@@ -609,7 +618,7 @@ struct WorkoutSessionView: View {
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             } else {
-                                Text("\(firstSetReps) reps")
+                                Text(firstSetIsWarmup ? "\(firstSetReps) reps" : workSetRepsLabel(for: nextExercise))
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -623,7 +632,7 @@ struct WorkoutSessionView: View {
                             Text("Weight")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
-                            Text(String(format: "%.1f kg", firstSetWeight))
+                            Text(formatSetWeight(firstSetWeight))
                                 .font(.headline)
                                 .bold()
                                 .lineLimit(1)
@@ -761,6 +770,9 @@ struct WorkoutSessionView: View {
             .disabled(isSessionEnding)
         }
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        .overlay(alignment: .top) {
+            recordBannerView
+        }
         .navigationBarHidden(true)
         .onAppear {
             workoutSessionId = UUID()
@@ -925,6 +937,54 @@ struct WorkoutSessionView: View {
         startRestTimer()
     }
 
+    @ViewBuilder
+    private var recordBannerView: some View {
+        if let record = celebratedRecord {
+            HStack(spacing: 12) {
+                Image(systemName: "trophy.fill")
+                    .font(.title2)
+                    .foregroundColor(.white)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("New Personal Record!")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    Text("\(record.exerciseName) — \(String(format: "%.1f", record.weight)) kg")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.9))
+                }
+                Spacer()
+            }
+            .padding(16)
+            .background(
+                LinearGradient(
+                    colors: [.orange, .yellow],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .shadow(color: .orange.opacity(0.4), radius: 8, y: 4)
+            .padding(.horizontal, 16)
+            .padding(.top, 44)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
+    }
+
+    private func showRecordCelebration(exerciseName: String, weight: Double) {
+        withAnimation(.spring(duration: 0.4)) {
+            celebratedRecord = (exerciseName, weight)
+        }
+        speechSynthesizer.speakNewRecord(exerciseName: exerciseName, weight: weight)
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+            withAnimation(.easeOut(duration: 0.3)) {
+                if celebratedRecord?.exerciseName == exerciseName {
+                    celebratedRecord = nil
+                }
+            }
+        }
+    }
+
     private func startPlankTimer() {
         plankTimerStartDate = now
         plankEncouragementText = ""
@@ -1003,6 +1063,18 @@ struct WorkoutSessionView: View {
         let results = setResultsByExercise[exerciseIndex] ?? []
 
         if !results.isEmpty {
+            // Check for a record before persisting, so the comparison is
+            // against history rather than the attempt we're about to save.
+            let successfulWeights = results
+                .filter { !$0.isWarmup && !$0.didFail }
+                .map { $0.weight }
+            if let recordWeight = healthStore.newRecordWeight(
+                exerciseName: exercise.name,
+                successfulWorkSetWeights: successfulWeights
+            ) {
+                showRecordCelebration(exerciseName: exercise.name, weight: recordWeight)
+            }
+
             let mappedResults = results.map { result in
                 (
                     setIndex: result.setIndex,
@@ -1259,7 +1331,10 @@ extension WorkoutSessionView {
         guard !isSessionEnding else { return }
         guard let exercise = currentExercise else { return }
         let plates = exercise.getPlatesForWeight(currentSetWeight)
-        let platesDescription = formatPlatesForSpeech(plates)
+        // Non-barbell exercises have no plates or bar — describe the load itself
+        let platesDescription = exercise.usesBarbellLoading
+            ? formatPlatesForSpeech(plates)
+            : formatSetWeight(currentSetWeight)
 
         // Compute next set info for the watch to display during rest
         var nextSetWeight: Double?
@@ -1278,10 +1353,10 @@ extension WorkoutSessionView {
             } else {
                 let workSetIndex = nextIdx - currentWarmupSets.count
                 nextSetWeight = workSetWeight(for: exercise, workSetNumber: workSetIndex + 1)
-                nextSetReps = Int(exercise.reps) ?? 0
+                nextSetReps = exercise.repsPerSet ?? 0
                 nextSetIsWarmup = false
             }
-            if let w = nextSetWeight {
+            if let w = nextSetWeight, exercise.usesBarbellLoading {
                 nextSetPlatesDescription = formatPlatesForSpeech(exercise.getPlatesForWeight(w))
             }
             nextSetLabel = "Set \(nextIdx + 1)/\(totalSetsIncludingWarmup)"
@@ -1292,18 +1367,23 @@ extension WorkoutSessionView {
             let nextTotalSets = nextWarmups.count + nextExercise.sets
             if nextWarmups.isEmpty {
                 nextSetWeight = targetWorkWeight(for: nextExercise)
-                nextSetReps = Int(nextExercise.reps) ?? 0
+                nextSetReps = nextExercise.repsPerSet ?? 0
                 nextSetIsWarmup = false
             } else {
                 nextSetWeight = nextWarmups[0].weight
                 nextSetReps = nextWarmups[0].reps
                 nextSetIsWarmup = true
             }
-            if let w = nextSetWeight {
+            if let w = nextSetWeight, nextExercise.usesBarbellLoading {
                 nextSetPlatesDescription = formatPlatesForSpeech(nextExercise.getPlatesForWeight(w))
             }
             nextSetLabel = "Set 1/\(nextTotalSets)"
             nextExerciseName = nextExercise.name
+        }
+
+        // A zero weight means a bodyweight exercise — don't show "0.0 kg" on the watch
+        if let w = nextSetWeight, w <= 0 {
+            nextSetWeight = nil
         }
 
         healthStore.sendWorkoutUpdate(
@@ -1400,7 +1480,7 @@ extension WorkoutSessionView {
                 // Next set is a work set
                 let workSetIndex = nextSetIndex - currentWarmupSets.count
                 nextWeight = workSetWeight(for: exercise, workSetNumber: workSetIndex + 1)
-                nextReps = Int(exercise.reps) ?? 0
+                nextReps = exercise.repsPerSet ?? 0
             }
 
             let plates = exercise.getPlatesForWeight(nextWeight)
@@ -1434,7 +1514,7 @@ extension WorkoutSessionView {
             let nextWarmups = warmupSetsPerExercise[nextExercise.name] ?? []
 
             let firstSetWeight = nextWarmups.isEmpty ? workWeight : nextWarmups[0].weight
-            let firstSetReps = nextWarmups.isEmpty ? (Int(nextExercise.reps) ?? 0) : nextWarmups[0].reps
+            let firstSetReps = nextWarmups.isEmpty ? (nextExercise.repsPerSet ?? 0) : nextWarmups[0].reps
             let plates = nextExercise.getPlatesForWeight(firstSetWeight)
             let setType = nextWarmups.isEmpty ? "Work" : "Warmup"
 
@@ -1453,30 +1533,45 @@ extension WorkoutSessionView {
 
 // MARK: - Speech Synthesizer Delegate Helper
 @MainActor
-final class SpeechSynthesizerDelegate: NSObject, @preconcurrency AVSpeechSynthesizerDelegate {
+/// Speaks workout cues with the on-device KittenTTS neural voice. Apple's
+/// AVSpeechSynthesizer remains as a fallback for the window before the Kitten
+/// model has downloaded (first launch) or if synthesis ever fails, so cues are
+/// never silently dropped. Generated audio plays through our own AVAudioPlayer
+/// — unlike KittenTTS's built-in speak(), that gives us pause/resume across
+/// audio-session interruptions, matching the old AVSpeech behaviour.
+final class SpeechSynthesizerDelegate: NSObject, @preconcurrency AVSpeechSynthesizerDelegate, @preconcurrency AVAudioPlayerDelegate {
     private enum CueKind {
         case exerciseInfo
         case nextSetInfo
         case restEnding
         case restComplete
+        case personalRecord
         case plankEncouragement
         case runSplit
     }
 
     private struct SpeechCue {
         let kind: CueKind
-        let utterance: AVSpeechUtterance
+        let message: String
     }
 
-    private let synthesizer = AVSpeechSynthesizer()
+    // nano-int8 (~25 MB) downloads on first use and is cached in
+    // Application Support; init falls back to Apple speech until then.
+    private static let kittenConfig = KittenTTSConfig(model: .nanoInt8, defaultVoice: .luna)
+    private var kitten: KittenTTS?
+    private var player: AVAudioPlayer?
+    private var synthesisTask: Task<Void, Never>?
+
+    private let fallbackSynthesizer = AVSpeechSynthesizer()
     var onSpeechFinished: (() -> Void)?
     private var pendingCues: [SpeechCue] = []
     private var isSpeechFocusHeld = false
     private var isInterrupted = false
+    private var isCueActive = false
 
     override init() {
         super.init()
-        synthesizer.delegate = self
+        fallbackSynthesizer.delegate = self
         AudioSessionManager.shared.onInterruptionBegan = { [weak self] in
             guard let self else { return }
             Task { @MainActor in
@@ -1489,19 +1584,38 @@ final class SpeechSynthesizerDelegate: NSObject, @preconcurrency AVSpeechSynthes
                 self.handleInterruptionEnded(shouldResume: shouldResume)
             }
         }
+        Task { [weak self] in
+            do {
+                let engine = try await KittenTTS(Self.kittenConfig)
+                self?.kitten = engine
+            } catch {
+                // Offline first launch or download failure — Apple voice carries on.
+            }
+        }
     }
     
     func speakExerciseInfo(name: String, weight: Double, plates: [Double], setType: String = "Work", reps: Int = 0) {
-        let platesDescription = formatPlatesForSpeech(plates)
         let repsText = reps > 0 ? "for \(reps) reps, " : ""
-        let message = "\(name). \(setType) set. Set weight to \(String(format: "%.1f", weight)) kilograms, \(repsText)\(platesDescription)"
+        let message: String
+        if weight > 0 {
+            let platesDescription = formatPlatesForSpeech(plates)
+            message = "\(name). \(setType) set. Set weight to \(String(format: "%.1f", weight)) kilograms, \(repsText)\(platesDescription)"
+        } else {
+            // Bodyweight exercise — there's no bar or load to announce
+            message = "\(name). \(setType) set. Body weight\(reps > 0 ? ", for \(reps) reps." : ".")"
+        }
         enqueueSpeech(message, kind: .exerciseInfo)
     }
-    
+
     func speakNextSetInfo(exerciseName: String, setNumber: Int, totalSets: Int, weight: Double, plates: [Double], setType: String = "Work", reps: Int = 0) {
-        let platesDescription = formatPlatesForSpeech(plates)
         let repsText = reps > 0 ? "for \(reps) reps, " : ""
-        let message = "Next up: \(exerciseName), \(setType) set \(setNumber) of \(totalSets). Weight: \(String(format: "%.1f", weight)) kilograms, \(repsText)\(platesDescription)"
+        let message: String
+        if weight > 0 {
+            let platesDescription = formatPlatesForSpeech(plates)
+            message = "Next up: \(exerciseName), \(setType) set \(setNumber) of \(totalSets). Weight: \(String(format: "%.1f", weight)) kilograms, \(repsText)\(platesDescription)"
+        } else {
+            message = "Next up: \(exerciseName), \(setType) set \(setNumber) of \(totalSets). Body weight\(reps > 0 ? ", for \(reps) reps." : ".")"
+        }
         enqueueSpeech(message, kind: .nextSetInfo)
     }
     
@@ -1513,6 +1627,11 @@ final class SpeechSynthesizerDelegate: NSObject, @preconcurrency AVSpeechSynthes
     func speakRestComplete() {
         let message = "Rest complete. Begin your next set."
         enqueueSpeech(message, kind: .restComplete)
+    }
+
+    func speakNewRecord(exerciseName: String, weight: Double) {
+        let message = "New personal record! \(exerciseName) at \(String(format: "%.1f", weight)) kilograms. Great work."
+        enqueueSpeech(message, kind: .personalRecord)
     }
 
     func speakPlankEncouragement(_ message: String) {
@@ -1538,19 +1657,15 @@ final class SpeechSynthesizerDelegate: NSObject, @preconcurrency AVSpeechSynthes
     func stopAndClearQueue() {
         pendingCues.removeAll()
         isInterrupted = false
-        if synthesizer.isSpeaking || synthesizer.isPaused {
-            synthesizer.stopSpeaking(at: .immediate)
-        }
+        stopCurrentPlayback()
+        isCueActive = false
         releaseSpeechFocusIfNeeded()
     }
-    
-    private func enqueueSpeech(_ message: String, kind: CueKind) {
-        let utterance = AVSpeechUtterance(string: message)
-        utterance.voice = AVSpeechSynthesisVoice(language: "en-AU") ?? AVSpeechSynthesisVoice(language: "en-US")
-        utterance.rate = 0.45
-        let cue = SpeechCue(kind: kind, utterance: utterance)
 
-        if isInterrupted || synthesizer.isSpeaking || synthesizer.isPaused {
+    private func enqueueSpeech(_ message: String, kind: CueKind) {
+        let cue = SpeechCue(kind: kind, message: message)
+
+        if isInterrupted || isCueActive {
             enqueueOrCoalesce(cue)
             return
         }
@@ -1568,7 +1683,58 @@ final class SpeechSynthesizerDelegate: NSObject, @preconcurrency AVSpeechSynthes
 
     private func startSpeaking(_ cue: SpeechCue) {
         holdSpeechFocusIfNeeded()
-        synthesizer.speak(cue.utterance)
+        isCueActive = true
+
+        guard let kitten else {
+            speakWithAppleVoice(cue.message)
+            return
+        }
+
+        synthesisTask = Task { [weak self] in
+            do {
+                let result = try await kitten.generate(cue.message)
+                guard let self, !Task.isCancelled else { return }
+                self.synthesisTask = nil
+                self.playGeneratedAudio(result.wavData(), fallbackMessage: cue.message)
+            } catch {
+                guard let self, !Task.isCancelled else { return }
+                self.synthesisTask = nil
+                self.speakWithAppleVoice(cue.message)
+            }
+        }
+    }
+
+    private func playGeneratedAudio(_ wavData: Data, fallbackMessage: String) {
+        do {
+            let player = try AVAudioPlayer(data: wavData)
+            player.delegate = self
+            self.player = player
+            player.prepareToPlay()
+            // If an interruption arrived mid-synthesis, hold the audio here;
+            // handleInterruptionEnded starts it once focus returns.
+            if !isInterrupted {
+                player.play()
+            }
+        } catch {
+            speakWithAppleVoice(fallbackMessage)
+        }
+    }
+
+    private func speakWithAppleVoice(_ message: String) {
+        let utterance = AVSpeechUtterance(string: message)
+        utterance.voice = AVSpeechSynthesisVoice(language: "en-AU") ?? AVSpeechSynthesisVoice(language: "en-US")
+        utterance.rate = 0.45
+        fallbackSynthesizer.speak(utterance)
+    }
+
+    private func stopCurrentPlayback() {
+        synthesisTask?.cancel()
+        synthesisTask = nil
+        player?.stop()
+        player = nil
+        if fallbackSynthesizer.isSpeaking || fallbackSynthesizer.isPaused {
+            fallbackSynthesizer.stopSpeaking(at: .immediate)
+        }
     }
 
     private func holdSpeechFocusIfNeeded() {
@@ -1592,14 +1758,18 @@ final class SpeechSynthesizerDelegate: NSObject, @preconcurrency AVSpeechSynthes
             return
         }
 
+        isCueActive = false
         releaseSpeechFocusIfNeeded()
         onSpeechFinished?()
     }
 
     private func handleInterruptionBegan() {
         isInterrupted = true
-        if synthesizer.isSpeaking {
-            _ = synthesizer.pauseSpeaking(at: .word)
+        if let player, player.isPlaying {
+            player.pause()
+        }
+        if fallbackSynthesizer.isSpeaking {
+            _ = fallbackSynthesizer.pauseSpeaking(at: .word)
         }
     }
 
@@ -1608,25 +1778,35 @@ final class SpeechSynthesizerDelegate: NSObject, @preconcurrency AVSpeechSynthes
 
         guard shouldResume else {
             pendingCues.removeAll()
-            if synthesizer.isSpeaking || synthesizer.isPaused {
-                synthesizer.stopSpeaking(at: .immediate)
-            }
+            stopCurrentPlayback()
+            isCueActive = false
             releaseSpeechFocusIfNeeded()
             return
         }
 
-        if synthesizer.isPaused {
-            _ = synthesizer.continueSpeaking()
+        if let player {
+            player.play()
             return
         }
+        if fallbackSynthesizer.isPaused {
+            _ = fallbackSynthesizer.continueSpeaking()
+            return
+        }
+        // Synthesis still in flight — playback starts when it lands.
+        if synthesisTask != nil { return }
 
         playNextCueOrReleaseFocus()
     }
-    
+
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        self.player = nil
+        playNextCueOrReleaseFocus()
+    }
+
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         playNextCueOrReleaseFocus()
     }
-    
+
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
         playNextCueOrReleaseFocus()
     }

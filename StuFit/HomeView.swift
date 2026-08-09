@@ -173,6 +173,11 @@ struct HomeView: View {
                         }
                     }
                     
+                    // Streaks and personal records
+                    if healthStore.authorized && healthStore.activeWeightProgram?.isActive == true && !showingActivitySelector && !showingWeightsCoach && !showingChangeProgram && !showingRunConfig {
+                        ProgressSummaryCard(healthStore: healthStore)
+                    }
+
                     // Change Weights Program
                     if healthStore.authorized && healthStore.selectedWorkoutType == .weights && showingChangeProgram {
                         WeightsCoachView(healthStore: healthStore, onBack: dismissChangeProgram)
@@ -320,7 +325,7 @@ struct HomeView: View {
                                                                 .font(.caption)
                                                                 .foregroundColor(.secondary)
                                                         }
-                                                        Text("@ \(String(format: "%.1f", setWeight)) kg")
+                                                        Text(setWeight > 0 ? "@ \(String(format: "%.1f", setWeight)) kg" : "Bodyweight")
                                                             .font(.caption)
                                                             .foregroundColor(.blue)
                                                             .lineLimit(1)

@@ -1,0 +1,24 @@
+{
+  "originHash" : "f10c81ecad8b3654f7a720473406e3d2dc5b3157e652c31566de7cd9f91301a6",
+  "pins" : [
+    {
+      "identity" : "kittentts-swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/KittenML/KittenTTS-swift",
+      "state" : {
+        "revision" : "4da0abbb92af4e7faf61affabbdb80d334ea768e",
+        "version" : "0.1.0"
+      }
+    },
+    {
+      "identity" : "onnxruntime-swift-package-manager",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/microsoft/onnxruntime-swift-package-manager",
+      "state" : {
+        "revision" : "b7fb7f7dea8a2469e6335d95a61b8f36d0dc83b2",
+        "version" : "1.24.2"
+      }
+    }
+  ],
+  "version" : 3
+}

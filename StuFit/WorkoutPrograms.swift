@@ -26,6 +26,16 @@ struct Exercise {
         barbellExerciseNames.contains(name.lowercased())
     }
 
+    /// Exercises performed with body weight only — no bar or external load,
+    /// so no weight is tracked, progressed, or announced for them.
+    private var bodyweightExerciseNames: Set<String> {
+        ["pull ups", "roman sit ups", "plank"]
+    }
+
+    var isBodyweightExercise: Bool {
+        bodyweightExerciseNames.contains(name.lowercased())
+    }
+
     private var timedExerciseNames: Set<String> {
         ["plank"]
     }
@@ -37,6 +47,13 @@ struct Exercise {
     /// For timed exercises, parse the target duration in seconds from the reps string (e.g. "60 Seconds" -> 60)
     var targetDurationSeconds: Int? {
         guard isTimedExercise else { return nil }
+        let digits = reps.prefix(while: { $0.isNumber })
+        return Int(digits)
+    }
+
+    /// Numeric rep target parsed from the reps string ("8 Each Leg" -> 8).
+    /// Nil for non-numeric targets like "Max Reps".
+    var repsPerSet: Int? {
         let digits = reps.prefix(while: { $0.isNumber })
         return Int(digits)
     }
@@ -110,7 +127,13 @@ struct Exercise {
         roundToNearestLoadableWeight(getWeightForSet(1, completionCount: completionCount))
     }
     
-    /// Generate warm-up sets following the step-up method
+    /// Generate up to 3 warm-up sets ramping to the work weight.
+    ///
+    /// The ramp halves the remaining gap to the work weight each step
+    /// (e.g. 20 → 30 → 35 before a 40kg work set). Every step must climb at
+    /// least 5kg and finish at least 5kg under the work weight; when the work
+    /// weight is too low for three distinct steps, the starting weight is
+    /// repeated once instead (e.g. 20, 20, 25 before a 30kg work set).
     /// - Parameters:
     ///   - workWeight: The target work weight in kg
     ///   - completionCount: How many times this exercise has been completed (0 = first time)
@@ -118,56 +141,34 @@ struct Exercise {
     func generateWarmupSets(_ workWeight: Double, completionCount: Int = 0) -> [WarmupSet] {
         guard usesBarbellLoading else { return [] }
 
-        var warmupSets: [WarmupSet] = []
-        
-        // Rule 1: The Empty Bar Start
-        let startingWeight: Double
+        // Starting weight: deadlift variations start at 30kg (an empty bar
+        // sits too low to pull from the floor); everything else starts with
+        // the empty 20kg bar. Stay at least 5kg under the work weight so the
+        // ramp has somewhere to go — unless the work weight is the bar itself.
         let isDeadlift = name.lowercased().contains("deadlift")
-        
-        if isDeadlift {
-            // Exception: Deadlifts start at 60kg
-            startingWeight = 60.0
-            warmupSets.append(WarmupSet(weight: startingWeight, reps: 5))
-            warmupSets.append(WarmupSet(weight: startingWeight, reps: 5))
-        } else {
-            // All other exercises: 2 sets of 5 with empty bar (20kg)
-            warmupSets.append(WarmupSet(weight: baseWeight, reps: 5))
-            warmupSets.append(WarmupSet(weight: baseWeight, reps: 5))
-            startingWeight = baseWeight
-        }
-        
-        // Rule 2: The Step-Up Method
-        // Add weight in 10-20kg increments until reaching work weight
-        // Fewer reps as you get closer to work weight
-        
+        let preferredStart = isDeadlift ? 30.0 : baseWeight
+        let startingWeight = max(baseWeight, min(preferredStart, workWeight - 5.0))
+
+        var stepWeights: [Double] = [startingWeight]
         var currentWeight = startingWeight
-        
-        while currentWeight < workWeight {
-            // Determine increment size: use 20kg initially, but use smaller increments when closer to target
-            let remainingWeight = workWeight - currentWeight
-            let increment = remainingWeight > 40 ? 20.0 : (remainingWeight > 20 ? 15.0 : 10.0)
-            
-            currentWeight += increment
-            
-            // Don't add a set at or beyond work weight (that's the actual work set)
-            if currentWeight >= workWeight {
-                break
-            }
-            
-            // Determine reps: The closer to work weight, the fewer reps
-            let repsForSet: Int
-            if currentWeight < workWeight - 30 {
-                repsForSet = 3
-            } else if currentWeight < workWeight - 10 {
-                repsForSet = 2
-            } else {
-                repsForSet = 2
-            }
-            
-            warmupSets.append(WarmupSet(weight: currentWeight, reps: repsForSet))
+        while stepWeights.count < 3 {
+            let next = roundToNearestLoadableWeight(currentWeight + (workWeight - currentWeight) / 2.0)
+            guard next - currentWeight >= 4.999, workWeight - next >= 4.999 else { break }
+            stepWeights.append(next)
+            currentWeight = next
         }
-        
-        return warmupSets
+
+        // Too light for 3 distinct steps: repeat the starting weight once so
+        // there are still enough sets to groove the movement.
+        if stepWeights.count < 3, stepWeights.filter({ $0 == startingWeight }).count < 2 {
+            stepWeights.insert(startingWeight, at: 0)
+        }
+
+        // Fewer reps as the bar approaches the work weight
+        let repsByPosition = [5, 3, 2]
+        return stepWeights.enumerated().map { index, weight in
+            WarmupSet(weight: weight, reps: repsByPosition[min(index, repsByPosition.count - 1)])
+        }
     }
 }
 
@@ -181,27 +182,35 @@ struct WorkoutProgramTemplate {
     let workouts: [ProgramWorkout]
     
     static let programs: [Int: WorkoutProgramTemplate] = [
+        // One session a week has to cover every target area each time —
+        // alternating A/B here would leave two weeks between bench sessions.
+        // Volume is trimmed to keep the session under an hour with warmups.
         1: WorkoutProgramTemplate(
             daysPerWeek: 1,
             workouts: [
-                ProgramWorkout(name: "Day 1", exercises: [
-                    Exercise(name: "Squats", sets: 5, reps: "5"),
-                    Exercise(name: "Bench Press", sets: 5, reps: "5"),
-                    Exercise(name: "Deadlift", sets: 1, reps: "5"),
-                    Exercise(name: "Overhead Press", sets: 2, reps: "5")
+                ProgramWorkout(name: "Full Body", exercises: [
+                    Exercise(name: "Squats", sets: 3, reps: "5"),
+                    Exercise(name: "Bench Press", sets: 3, reps: "5"),
+                    Exercise(name: "Barbell Rows", sets: 3, reps: "5"),
+                    Exercise(name: "Overhead Press", sets: 2, reps: "5"),
+                    Exercise(name: "Deadlift", sets: 1, reps: "5")
                 ])
             ]
         ),
+        // Classic StrongLifts A/B alternation. Each session is full body:
+        // squat every workout, push + pull in A, press + hinge in B.
         2: WorkoutProgramTemplate(
             daysPerWeek: 2,
             workouts: [
                 ProgramWorkout(name: "Workout A", exercises: [
                     Exercise(name: "Squats", sets: 5, reps: "5"),
-                    Exercise(name: "Bench Press", sets: 5, reps: "5")
+                    Exercise(name: "Bench Press", sets: 5, reps: "5"),
+                    Exercise(name: "Barbell Rows", sets: 5, reps: "5")
                 ]),
                 ProgramWorkout(name: "Workout B", exercises: [
-                    Exercise(name: "Deadlift", sets: 5, reps: "5"),
-                    Exercise(name: "Overhead Press", sets: 5, reps: "5")
+                    Exercise(name: "Squats", sets: 5, reps: "5"),
+                    Exercise(name: "Overhead Press", sets: 5, reps: "5"),
+                    Exercise(name: "Deadlift", sets: 1, reps: "5")
                 ])
             ]
         ),

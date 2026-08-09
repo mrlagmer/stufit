@@ -42,7 +42,17 @@ final class WatchWorkoutManager: NSObject, ObservableObject {
 
         let configuration = HKWorkoutConfiguration()
         if isRun {
-            configuration.activityType = .running
+            // For runs the iPhone is the authoritative recorder (GPS distance +
+            // route) and this watch session exists only to stream heart rate.
+            // We deliberately use `.other` rather than `.running`: a `.running`
+            // configuration makes HKLiveWorkoutDataSource auto-collect
+            // distanceWalkingRunning + stepCount into HealthKit. If the watch
+            // session is interrupted mid-run (suspended / wrist-down / killed)
+            // those partial samples leak into Health and get picked up ahead of
+            // the phone's full GPS distance — which is exactly what truncated a
+            // run to ~6.85 km and made Strava flag the data. `.other` still
+            // collects heart rate but never distance or steps.
+            configuration.activityType = .other
             configuration.locationType = outdoor ? .outdoor : .indoor
         } else {
             configuration.activityType = .traditionalStrengthTraining

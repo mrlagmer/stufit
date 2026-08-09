@@ -11,6 +11,7 @@
 		BFBCDC6A2F4953BF0066A138 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BFBCDC692F4953BF0066A138 /* WidgetKit.framework */; };
 		BFBCDC6C2F4953BF0066A138 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BFBCDC6B2F4953BF0066A138 /* SwiftUI.framework */; };
 		BFBCDC7D2F4953C10066A138 /* StuFitWidgetExtensionExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BFBCDC672F4953BF0066A138 /* StuFitWidgetExtensionExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		BFDD10012F5A00010066A138 /* KittenTTS in Frameworks */ = {isa = PBXBuildFile; productRef = BFDD10022F5A00010066A138 /* KittenTTS */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -121,6 +122,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BFDD10012F5A00010066A138 /* KittenTTS in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -201,6 +203,7 @@
 				BF21F49A2F2835DF003E0B2B /* Resources */,
 				BFBCDC7E2F4953C10066A138 /* Embed Foundation Extensions */,
 				BF05778F2F4EB68D00B69330 /* Embed Watch Content */,
+				BF7A22DD315A9B0000000001 /* Generate onnxruntime dSYM */,
 			);
 			buildRules = (
 			);
@@ -214,6 +217,7 @@
 			);
 			name = StuFit;
 			packageProductDependencies = (
+				BFDD10022F5A00010066A138 /* KittenTTS */,
 			);
 			productName = StuFit;
 			productReference = BF21F49C2F2835DF003E0B2B /* StuFit.app */;
@@ -272,6 +276,9 @@
 			);
 			mainGroup = BF21F4932F2835DF003E0B2B;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				BFDD10032F5A00010066A138 /* XCRemoteSwiftPackageReference "KittenTTS-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = BF21F49D2F2835DF003E0B2B /* Products */;
 			projectDirPath = "";
@@ -307,6 +314,32 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		BF7A22DD315A9B0000000001 /* Generate onnxruntime dSYM */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)/onnxruntime.framework/onnxruntime",
+			);
+			name = "Fix onnxruntime framework for App Store";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DWARF_DSYM_FOLDER_PATH)/onnxruntime.framework.dSYM/Contents/Info.plist",
+				"$(DWARF_DSYM_FOLDER_PATH)/onnxruntime.framework.dSYM/Contents/Resources/DWARF/onnxruntime",
+				"$(DWARF_DSYM_FOLDER_PATH)/onnxruntime.framework.dSYM/Contents/Resources/Relocations/aarch64/onnxruntime.yml",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# The onnxruntime SPM binary framework fails App Store validation two ways:\n# it ships no dSYM, and its Info.plist MinimumOSVersion (15.1) contradicts the\n# minos the dylib is actually linked with at build time (TMS-90208).\n# Use the dylib embedded in the app bundle via TARGET_BUILD_DIR (points at the\n# installed app during archive builds). The onnxruntime.framework copy at the\n# top level of BUILT_PRODUCTS_DIR is a static library that dsymutil rejects.\nFRAMEWORK_DIR=\"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/onnxruntime.framework\"\nif [ \"${DEBUG_INFORMATION_FORMAT}\" = \"dwarf-with-dsym\" ] && [ -f \"${FRAMEWORK_DIR}/onnxruntime\" ]; then\n  plutil -replace MinimumOSVersion -string \"${IPHONEOS_DEPLOYMENT_TARGET}\" \"${FRAMEWORK_DIR}/Info.plist\"\n  # The plist is covered by the framework's code signature seal, so re-sign.\n  if [ \"${CODE_SIGNING_ALLOWED}\" = \"YES\" ] && [ -n \"${EXPANDED_CODE_SIGN_IDENTITY}\" ]; then\n    codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --preserve-metadata=identifier,entitlements,flags \"${FRAMEWORK_DIR}\"\n  fi\n  dsymutil \"${FRAMEWORK_DIR}/onnxruntime\" -o \"${DWARF_DSYM_FOLDER_PATH}/onnxruntime.framework.dSYM\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		BF0577802F4EB68C00B69330 /* Sources */ = {
@@ -460,7 +493,7 @@
 				DEVELOPMENT_TEAM = 847U7BXLK8;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -524,7 +557,7 @@
 				DEVELOPMENT_TEAM = 847U7BXLK8;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -725,6 +758,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		BFDD10032F5A00010066A138 /* XCRemoteSwiftPackageReference "KittenTTS-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/KittenML/KittenTTS-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.1.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		BFDD10022F5A00010066A138 /* KittenTTS */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BFDD10032F5A00010066A138 /* XCRemoteSwiftPackageReference "KittenTTS-swift" */;
+			productName = KittenTTS;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = BF21F4942F2835DF003E0B2B /* Project object */;
 }
