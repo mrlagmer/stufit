@@ -53,10 +53,20 @@
     "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/PlateFormatter.bc",
     "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/PlateFormatter.o"
   },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFit/RunActiveView.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/RunActiveView.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/RunActiveView.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/RunActiveView.o"
+  },
   "/Users/stuartmitchell/Code/stufit/FullFitness/StuFit/RunConfigurationView.swift" : {
     "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/RunConfigurationView.o",
     "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/RunConfigurationView.bc",
     "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/RunConfigurationView.o"
+  },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFit/RunSessionManager.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/RunSessionManager.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/RunSessionManager.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/RunSessionManager.o"
   },
   "/Users/stuartmitchell/Code/stufit/FullFitness/StuFit/WeightsCoachView.swift" : {
     "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFit.build/Objects-normal/arm64/WeightsCoachView.o",

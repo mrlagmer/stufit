@@ -18,6 +18,11 @@
     "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/StuFitWatchApp.bc",
     "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/StuFitWatchApp.o"
   },
+  "/Users/stuartmitchell/Code/stufit/FullFitness/StuFitWatch Watch App/WatchRunSessionView.swift" : {
+    "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/WatchRunSessionView.o",
+    "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/WatchRunSessionView.bc",
+    "object" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/WatchRunSessionView.o"
+  },
   "/Users/stuartmitchell/Code/stufit/FullFitness/StuFitWatch Watch App/WatchSessionManager.swift" : {
     "index-unit-output-path" : "/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/WatchSessionManager.o",
     "llvm-bc" : "/Users/stuartmitchell/Code/stufit/FullFitness/build/FullFitness.build/Release-iphonesimulator/StuFitWatch Watch App.build/Objects-normal/arm64/WatchSessionManager.bc",
