@@ -160,98 +160,85 @@ struct ProgressSummaryCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Your Progress")
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                Spacer()
-            }
+            GLMSectionHeader("Your progress")
 
             weeklyStreakRow
 
             if !liftsWithRecords.isEmpty {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: GLM.Space.listGap) {
                     ForEach(liftsWithRecords, id: \.name) { lift in
-                        liftChip(lift)
+                        liftTile(lift)
                     }
                 }
             }
         }
-        .padding(16)
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .glmCard()
     }
 
     @ViewBuilder
     private var weeklyStreakRow: some View {
         let streak = healthStore.weeklyStreak
         let thisWeek = min(healthStore.sessionsThisWeek, weeklyTarget)
+        let targetHit = thisWeek >= weeklyTarget
 
-        HStack(spacing: 12) {
-            Image(systemName: "flame.fill")
-                .font(.title2)
-                .foregroundColor(streak > 0 ? .orange : .secondary)
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                if streak > 0 {
+                    GLMBadgeTile(glyph: "🔥")
+                } else {
+                    GLMIconTile(glyph: "🔥")
+                }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(streak == 1 ? "1 week streak" : "\(streak) week streak")
-                    .font(.headline)
-                Text(thisWeek >= weeklyTarget
-                     ? "Target hit this week — streak safe!"
-                     : "\(thisWeek) of \(weeklyTarget) workouts this week")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Weekly streak").glmText(.cardTitle)
+                    Text(targetHit
+                         ? "Target hit this week"
+                         : "\(thisWeek) of \(weeklyTarget) sessions this week")
+                        .glmText(.caption)
+                }
+
+                Spacer()
+
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Text("\(streak)").glmText(.statValue, color: GLM.purple)
+                    Text(streak == 1 ? "week" : "weeks").glmText(.unit)
+                }
             }
 
-            Spacer()
-
-            // One dot per program day this week
-            HStack(spacing: 5) {
+            // One segment per program day this week
+            HStack(spacing: 6) {
                 ForEach(0..<weeklyTarget, id: \.self) { index in
-                    Circle()
-                        .fill(index < thisWeek ? Color.orange : Color(.tertiarySystemBackground))
-                        .frame(width: 10, height: 10)
+                    RoundedRectangle(cornerRadius: GLM.Radius.bar, style: .continuous)
+                        .fill(index < thisWeek ? GLM.purple : GLM.borderQuiet)
+                        .frame(height: 6)
                 }
             }
         }
-        .padding(12)
-        .background(Color(.tertiarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
-    private func liftChip(_ lift: (name: String, record: LiftRecord, streak: Int)) -> some View {
+    private func liftTile(_ lift: (name: String, record: LiftRecord, streak: Int)) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 4) {
-                Text(lift.name)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                Text(lift.name).glmText(.label)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                 Spacer()
                 if lift.streak >= 2 {
-                    HStack(spacing: 1) {
-                        Image(systemName: "flame.fill")
-                            .font(.caption2)
-                        Text("\(lift.streak)")
-                            .font(.caption2)
-                            .fontWeight(.semibold)
-                    }
-                    .foregroundColor(.orange)
+                    Text("×\(lift.streak)").glmText(.label, color: GLM.caution)
                 }
             }
-            HStack(spacing: 4) {
-                Image(systemName: "trophy.fill")
-                    .font(.caption2)
-                    .foregroundColor(.yellow)
-                Text(String(format: "%.1f kg", lift.record.bestWeight))
-                    .font(.headline)
-                    .fontWeight(.semibold)
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Text(String(format: "%.1f", lift.record.bestWeight))
+                    .glmText(.statValue)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
+                Text("kg").glmText(.unit)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color(.tertiarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(.vertical, 12)
+        .padding(.horizontal, 14)
+        .background(GLM.appBg)
+        .clipShape(RoundedRectangle(cornerRadius: GLM.Radius.cardSm, style: .continuous))
     }
 }

@@ -9,9 +9,6 @@ import Foundation
 import Combine
 import HealthKit
 import FoundationModels
-#if canImport(WatchConnectivity)
-import WatchConnectivity
-#endif
 
 enum WorkoutType: String, CaseIterable {
     case cardio = "Cardio"
@@ -327,36 +324,12 @@ struct RunGoal {
     var timeMinutes: Int = 30
 }
 
-enum WatchConnectionStatus: String {
-    case unsupported
-    case notPaired
-    case watchAppNotInstalled
-    case pairedNotReachable
-    case ready
-
-    var helperText: String {
-        switch self {
-        case .unsupported:
-            return "Apple Watch data is not supported on this device."
-        case .notPaired:
-            return "Pair an Apple Watch to stream live heart rate."
-        case .watchAppNotInstalled:
-            return "Install StuFit on your Apple Watch to stream heart rate."
-        case .pairedNotReachable:
-            return "Keep your watch close to this iPhone so it can stream heart rate."
-        case .ready:
-            return "Awaiting live heart rate from your watch."
-        }
-    }
-}
-
 final class HealthStore: NSObject, ObservableObject {
     private let healthStore = HKHealthStore()
     @Published var authorized: Bool = false
     @Published var currentHeartRate: Double?
     @Published var isReceivingHeartRate: Bool = false
     @Published var isWorkoutActive: Bool = false
-    @Published var watchConnectionStatus: WatchConnectionStatus = .unsupported
     @Published var selectedWorkoutType: WorkoutType?
     @Published var selectedActivityType: ActivityType?
     @Published var selectedRunLocation: RunLocationType?
@@ -452,9 +425,6 @@ final class HealthStore: NSObject, ObservableObject {
     private var heartRateQuery: HKAnchoredObjectQuery?
     private var heartRateAnchor: HKQueryAnchor?
     private let heartRateUnit = HKUnit.count().unitDivided(by: HKUnit.minute())
-#if canImport(WatchConnectivity)
-    private var watchSession: WCSession?
-#endif
 
     override init() {
         super.init()
@@ -525,7 +495,6 @@ final class HealthStore: NSObject, ObservableObject {
         }
 
         migrateWeightsToValidIncrements()
-        configureWatchConnectivity()
         checkAuthorizationStatus()
     }
     
@@ -692,9 +661,7 @@ final class HealthStore: NSObject, ObservableObject {
     
     // MARK: - HealthKit Workout Session
     
-    /// Start a HealthKit workout session.
-    /// For runs, pass `isRun: true` so the watch records a running workout
-    /// (outdoor vs treadmill via `outdoor`) instead of strength training.
+    /// Mark a workout session as active and begin observing heart rate.
     func startWorkoutSession(workoutName: String, isRun: Bool = false, outdoor: Bool = true) async {
         guard !isWorkoutActive else { return }
 
@@ -703,85 +670,17 @@ final class HealthStore: NSObject, ObservableObject {
             self.isWorkoutActive = true
         }
 
-        // Tell the watch to start the HK workout session
-        sendStartWorkoutToWatch(workoutName: workoutName, isRun: isRun, outdoor: outdoor)
-
-        // Keep anchored query as fallback HR source (picks up synced data from watch)
+        // Anchored query picks up any heart rate samples synced into HealthKit
         heartRateAnchor = nil
         startHeartRateUpdates()
     }
     
     /// End the current HealthKit workout session and save it
     func endWorkoutSession(duration: TimeInterval) async {
-        // Tell watch to end session and save workout to HealthKit
-        sendEndWorkoutToWatch()
-
         currentWorkoutStartDate = nil
         DispatchQueue.main.async {
             self.isWorkoutActive = false
         }
-    }
-
-    private func sendStartWorkoutToWatch(workoutName: String, isRun: Bool = false, outdoor: Bool = true) {
-        #if canImport(WatchConnectivity)
-        guard let session = watchSession else { return }
-        let payload: [String: Any] = [
-            "type": "startWorkoutSession",
-            "workoutName": workoutName,
-            "isRun": isRun,
-            "outdoor": outdoor
-        ]
-        if session.isReachable {
-            session.sendMessage(payload, replyHandler: nil) { error in
-                print("Failed to send startWorkoutSession: \(error.localizedDescription)")
-            }
-        } else {
-            session.transferUserInfo(payload)
-        }
-        #endif
-    }
-
-    /// Stream live run metrics to the watch so its active-run face stays in sync.
-    func sendRunUpdateToWatch(
-        goalLabel: String,
-        elapsed: TimeInterval,
-        distanceKm: Double,
-        currentKmPaceSec: Int?,
-        averagePaceSec: Int?,
-        goalKm: Double?
-    ) {
-        #if canImport(WatchConnectivity)
-        guard let session = watchSession else { return }
-        var payload: [String: Any] = [
-            "type": "runUpdate",
-            "goalLabel": goalLabel,
-            "elapsed": elapsed,
-            "distanceKm": distanceKm
-        ]
-        if let currentKmPaceSec { payload["currentKmPaceSec"] = currentKmPaceSec }
-        if let averagePaceSec { payload["averagePaceSec"] = averagePaceSec }
-        if let goalKm { payload["goalKm"] = goalKm }
-
-        if session.isReachable {
-            session.sendMessage(payload, replyHandler: nil, errorHandler: nil)
-        } else {
-            session.transferUserInfo(payload)
-        }
-        #endif
-    }
-
-    private func sendEndWorkoutToWatch() {
-        #if canImport(WatchConnectivity)
-        guard let session = watchSession else { return }
-        let payload: [String: Any] = ["type": "endWorkoutSession"]
-        if session.isReachable {
-            session.sendMessage(payload, replyHandler: nil) { error in
-                print("Failed to send endWorkoutSession: \(error.localizedDescription)")
-            }
-        } else {
-            session.transferUserInfo(payload)
-        }
-        #endif
     }
 
     func startHeartRateUpdates() {
@@ -849,142 +748,6 @@ final class HealthStore: NSObject, ObservableObject {
             self.isReceivingHeartRate = true
         }
     }
-
-    private func configureWatchConnectivity() {
-#if canImport(WatchConnectivity)
-        guard WCSession.isSupported() else {
-            setWatchConnectionStatus(.unsupported)
-            return
-        }
-
-        let session = WCSession.default
-        session.delegate = self
-        session.activate()
-        watchSession = session
-        updateWatchStatus(session)
-#else
-        setWatchConnectionStatus(.unsupported)
-#endif
-    }
-
-    func sendWatchRestCue(_ cue: WatchRestCue) {
-#if canImport(WatchConnectivity)
-        guard let session = watchSession else { return }
-        updateWatchStatus(session)
-
-        guard session.isPaired, session.isWatchAppInstalled else { return }
-
-        let payload = cue.payload
-        if session.isReachable {
-            session.sendMessage(payload, replyHandler: nil) { error in
-                print("Failed to deliver watch rest cue: \(error.localizedDescription)")
-            }
-            return
-        }
-
-        session.transferUserInfo(payload)
-#else
-        _ = cue
-#endif
-    }
-
-    func sendWorkoutUpdate(
-        workoutName: String,
-        exerciseName: String,
-        currentExerciseIndex: Int,
-        totalExercises: Int,
-        currentSetIndex: Int,
-        totalSetsIncludingWarmup: Int,
-        currentSetWeight: Double,
-        currentSetReps: Int,
-        isWarmupSet: Bool,
-        isResting: Bool,
-        restEndDate: Date?,
-        platesDescription: String,
-        workoutStartDate: Date?,
-        nextSetWeight: Double? = nil,
-        nextSetReps: Int? = nil,
-        nextSetPlatesDescription: String? = nil,
-        nextSetLabel: String? = nil,
-        nextExerciseName: String? = nil,
-        nextSetIsWarmup: Bool? = nil
-    ) {
-#if canImport(WatchConnectivity)
-        guard let session = watchSession else { return }
-        updateWatchStatus(session)
-
-        guard session.isPaired, session.isWatchAppInstalled else { return }
-
-        var payload: [String: Any] = [
-            "type": "workoutUpdate",
-            "workoutName": workoutName,
-            "exerciseName": exerciseName,
-            "currentExerciseIndex": currentExerciseIndex,
-            "totalExercises": totalExercises,
-            "currentSetIndex": currentSetIndex,
-            "totalSetsIncludingWarmup": totalSetsIncludingWarmup,
-            "currentSetWeight": currentSetWeight,
-            "currentSetReps": currentSetReps,
-            "isWarmupSet": isWarmupSet,
-            "isResting": isResting,
-            "platesDescription": platesDescription
-        ]
-
-        if let restEndDate {
-            payload["restEndDate"] = restEndDate.timeIntervalSince1970
-        }
-        if let workoutStartDate {
-            payload["workoutStartDate"] = workoutStartDate.timeIntervalSince1970
-        }
-        if let nextSetWeight {
-            payload["nextSetWeight"] = nextSetWeight
-        }
-        if let nextSetReps {
-            payload["nextSetReps"] = nextSetReps
-        }
-        if let nextSetPlatesDescription {
-            payload["nextSetPlatesDescription"] = nextSetPlatesDescription
-        }
-        if let nextSetLabel {
-            payload["nextSetLabel"] = nextSetLabel
-        }
-        if let nextExerciseName {
-            payload["nextExerciseName"] = nextExerciseName
-        }
-        if let nextSetIsWarmup {
-            payload["nextSetIsWarmup"] = nextSetIsWarmup
-        }
-
-        if session.isReachable {
-            session.sendMessage(payload, replyHandler: nil) { error in
-                print("Failed to send workout update: \(error.localizedDescription)")
-            }
-            return
-        }
-
-        session.transferUserInfo(payload)
-#endif
-    }
-
-    private func setWatchConnectionStatus(_ status: WatchConnectionStatus) {
-        DispatchQueue.main.async {
-            self.watchConnectionStatus = status
-        }
-    }
-
-    #if canImport(WatchConnectivity)
-    private func updateWatchStatus(_ session: WCSession) {
-        if !session.isPaired {
-            setWatchConnectionStatus(.notPaired)
-        } else if !session.isWatchAppInstalled {
-            setWatchConnectionStatus(.watchAppNotInstalled)
-        } else if session.isReachable {
-            setWatchConnectionStatus(.ready)
-        } else {
-            setWatchConnectionStatus(.pairedNotReachable)
-        }
-    }
-    #endif
 
     private func checkAuthorizationStatus() {
         guard HKHealthStore.isHealthDataAvailable() else {
@@ -1072,14 +835,6 @@ final class HealthStore: NSObject, ObservableObject {
         self.selectedRunLocation = location
     }
 
-    var heartRateStatusDescription: String {
-        if let heartRate = currentHeartRate {
-            let rounded = Int(heartRate.rounded())
-            return "\(rounded) bpm · Live from Apple Watch"
-        }
-        return watchConnectionStatus.helperText
-    }
-    
     func getActivitiesForWorkoutType(_ workoutType: WorkoutType) -> [ActivityType] {
         switch workoutType {
         case .cardio:
@@ -1606,75 +1361,3 @@ final class HealthStore: NSObject, ObservableObject {
         }
     }
 }
-
-#if canImport(WatchConnectivity)
-extension HealthStore: WCSessionDelegate {
-    func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
-        if let error = error {
-            print("WatchConnectivity activation error: \(error.localizedDescription)")
-        }
-        updateWatchStatus(session)
-    }
-
-    func sessionDidBecomeInactive(_ session: WCSession) {
-        updateWatchStatus(session)
-    }
-
-    func sessionDidDeactivate(_ session: WCSession) {
-        session.activate()
-    }
-
-    func sessionWatchStateDidChange(_ session: WCSession) {
-        updateWatchStatus(session)
-    }
-
-    func sessionReachabilityDidChange(_ session: WCSession) {
-        updateWatchStatus(session)
-    }
-
-    func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
-        handleWatchMessage(message)
-    }
-
-    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String : Any] = [:]) {
-        handleWatchMessage(userInfo)
-    }
-
-    private func handleWatchMessage(_ message: [String: Any]) {
-        guard let type = message["type"] as? String else { return }
-
-        DispatchQueue.main.async {
-            switch type {
-            case "setComplete":
-                NotificationCenter.default.post(
-                    name: NSNotification.Name("WatchSetComplete"),
-                    object: nil,
-                    userInfo: ["didFail": message["didFail"] as? Bool ?? false]
-                )
-            case "skipRest":
-                NotificationCenter.default.post(
-                    name: NSNotification.Name("WatchSkipRest"),
-                    object: nil
-                )
-            case "endWorkout":
-                NotificationCenter.default.post(
-                    name: NSNotification.Name("WatchEndWorkout"),
-                    object: nil
-                )
-            case "heartRateUpdate":
-                if let bpm = message["heartRate"] as? Double {
-                    self.currentHeartRate = bpm
-                    self.isReceivingHeartRate = true
-                }
-            case "workoutSessionStarted":
-                print("Watch confirmed workout session started")
-            case "workoutSessionEnded":
-                print("Watch confirmed workout session ended and saved")
-            default:
-                break
-            }
-        }
-    }
-}
-#endif
-

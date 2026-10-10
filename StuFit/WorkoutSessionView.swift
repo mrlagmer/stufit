@@ -165,57 +165,43 @@ struct WorkoutSessionView: View {
     }
 
     @ViewBuilder
-    private func metricTile(title: String, value: String, subtitle: String? = nil, accent: Color = .primary) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
-            Text(value)
-                .font(.headline)
-                .fontWeight(.semibold)
-                .foregroundColor(accent)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-            if let subtitle, !subtitle.isEmpty {
-                Text(subtitle)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color(.tertiarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    private func metricTile(title: String, value: String, subtitle: String? = nil, accent: Color = GLM.ink) -> some View {
+        GLMInsetStatTile(value: value, label: title, subtitle: subtitle, tone: accent)
     }
-    
-    
+
+    /// Small "Warmup" pill in the caution accent.
+    private var warmupTag: some View {
+        GLMTag(text: "Warmup", color: GLM.caution)
+    }
+
     @ViewBuilder
     var exerciseDetailView: some View {
         if let exercise = currentExercise {
             VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(exercise.name)
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.8)
+                HStack(spacing: 12) {
+                    GLMIconTile(glyph: "🏋️")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(exercise.name).glmText(.screenTitle)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.8)
+                        Text(isWarmupSet ? "Warmup set" : "Work set").glmText(.caption)
+                    }
+                    Spacer()
                 }
 
                 let plates = exercise.getPlatesForWeight(currentSetWeight)
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: GLM.Space.listGap) {
                     metricTile(
-                        title: "Total Sets",
+                        title: "Sets",
                         value: "\(exercise.sets)",
                         subtitle: currentWarmupSets.isEmpty ? nil : "+ \(currentWarmupSets.count) warmup"
                     )
 
                     metricTile(
-                        title: "Current Set",
+                        title: "Current set",
                         value: "\(currentSetIndex + 1) of \(totalSetsIncludingWarmup)",
                         subtitle: isWarmupSet ? "Warmup" : nil,
-                        accent: isWarmupSet ? .orange : .primary
+                        accent: isWarmupSet ? GLM.caution : GLM.ink
                     )
 
                     metricTile(title: "Reps", value: isWarmupSet ? "\(currentSetReps)" : exercise.reps)
@@ -223,15 +209,14 @@ struct WorkoutSessionView: View {
                     metricTile(
                         title: "Weight",
                         value: formatSetWeight(currentSetWeight),
-                        subtitle: exercise.usesBarbellLoading ? formatPlates(plates) : nil
+                        subtitle: exercise.usesBarbellLoading ? formatPlates(plates) : nil,
+                        accent: GLM.cyan
                     )
                 }
-                
+
                 upcomingExercisesView
             }
-            .padding(16)
-            .background(Color(.secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .glmCard()
         }
     }
 
@@ -239,38 +224,42 @@ struct WorkoutSessionView: View {
     var timedExerciseDetailView: some View {
         if let exercise = currentExercise {
             VStack(alignment: .leading, spacing: 16) {
-                Text(exercise.name)
-                    .font(.title3)
-                    .fontWeight(.semibold)
+                HStack(spacing: 12) {
+                    GLMIconTile(glyph: "🧘")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(exercise.name).glmText(.screenTitle)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.8)
+                        Text("Timed hold").glmText(.caption)
+                    }
+                    Spacer()
+                }
 
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                    metricTile(title: "Total Sets", value: "\(exercise.sets)")
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: GLM.Space.listGap) {
+                    metricTile(title: "Sets", value: "\(exercise.sets)")
                     metricTile(
-                        title: "Current Set",
+                        title: "Current set",
                         value: "\(currentSetIndex + 1) of \(exercise.sets)"
                     )
                 }
 
-                VStack(spacing: 8) {
+                VStack(spacing: 6) {
                     Text(plankTimerString)
-                        .font(.system(size: 64, weight: .bold, design: .monospaced))
+                        .font(.system(size: 64, weight: .bold))
+                        .tracking(-1.28)
                         .monospacedDigit()
-                        .foregroundColor(isPlankTimerRunning ? .primary : .secondary)
+                        .foregroundColor(isPlankTimerRunning ? GLM.ink : GLM.inkMuted)
 
                     if let target = exercise.targetDurationSeconds {
-                        Text("Target: \(target) seconds")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                        Text("Target \(target) seconds").glmText(.caption)
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
+                .padding(.vertical, 12)
 
                 if !plankEncouragementText.isEmpty {
                     Text(plankEncouragementText)
-                        .font(.body)
-                        .italic()
-                        .foregroundColor(.accentColor)
+                        .glmText(.body, color: GLM.purple)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
                         .transition(.opacity)
@@ -279,228 +268,117 @@ struct WorkoutSessionView: View {
 
                 upcomingExercisesView
             }
-            .padding(16)
-            .background(Color(.secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .glmCard()
         }
     }
-    
+
     @ViewBuilder
     var upcomingExercisesView: some View {
         if currentExerciseIndex < workout.exercises.count - 1 {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Up Next")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .bold()
-                
-                VStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Up next").glmEyebrow()
+
+                VStack(spacing: GLM.Space.listGap) {
                     ForEach(Array(workout.exercises.dropFirst(currentExerciseIndex + 1)).prefix(2).indices, id: \.self) { index in
                         let nextExercise = workout.exercises[currentExerciseIndex + 1 + index]
                         HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(nextExercise.name)
-                                    .font(.body)
-                                    .fontWeight(.medium)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.85)
-                                Text("\(nextExercise.sets) × \(nextExercise.reps)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
+                            Text(nextExercise.name).glmText(.cardTitle)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.85)
                             Spacer()
+                            Text("\(nextExercise.sets) × \(nextExercise.reps)").glmText(.readout)
                         }
-                        .padding(12)
-                        .background(Color(.tertiarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .glmRow(.inset, padding: EdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 14))
                     }
                 }
             }
         }
     }
-    
+
     @ViewBuilder
     var actionButtonView: some View {
         if onRestTimer {
-            VStack(spacing: 12) {
-                VStack(spacing: 12) {
-                    Text("Rest Time")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
+            VStack(spacing: GLM.Space.listGap) {
+                VStack(spacing: 10) {
+                    Text("Rest").glmEyebrow()
+
                     Text(restTimeString)
-                        .font(.system(size: restClockSize, weight: .bold, design: .monospaced))
+                        .font(.system(size: restClockSize, weight: .bold))
+                        .tracking(-restClockSize * 0.02)
                         .monospacedDigit()
+                        .foregroundColor(GLM.ink)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
-                    
-                    ProgressView(value: 1.0 - (restTimeRemaining / restDuration))
-                        .tint(.accentColor)
+
+                    GLMMetricBar(fraction: 1.0 - (restTimeRemaining / restDuration), color: GLM.purple, height: 6)
                 }
-                .padding(16)
-                .background(Color(.secondarySystemBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                
+                .glmCard(padding: EdgeInsets(top: 16, leading: 20, bottom: 16, trailing: 20))
+
                 nextSetPreviewView
-                
-                Button(action: {
-                    completeRest()
-                }) {
-                    Text("Skip Rest")
-                        .frame(maxWidth: .infinity)
-                        .padding(12)
-                        .foregroundColor(.primary)
-                        .background(Color(.tertiarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .font(.headline)
-                }
+
+                Button("Skip rest") { completeRest() }
+                    .buttonStyle(.glmOutline)
             }
         } else if isCurrentExerciseTimed {
             if !isPlankTimerRunning {
-                Button(action: {
-                    startPlankTimer()
-                }) {
-                    Text("Start \(currentExercise?.name ?? "Exercise")")
-                        .frame(maxWidth: .infinity)
-                        .padding(12)
-                        .foregroundColor(.white)
-                        .background(Color.green)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .font(.headline)
-                }
+                Button("Start \(currentExercise?.name ?? "exercise")") { startPlankTimer() }
+                    .buttonStyle(.glmPrimary)
             } else {
-                Button(action: {
-                    completePlankSet()
-                }) {
-                    Text("Done - Stop Timer")
-                        .frame(maxWidth: .infinity)
-                        .padding(12)
-                        .foregroundColor(.white)
-                        .background(Color.accentColor)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .font(.headline)
-                }
+                Button("Done, stop timer") { completePlankSet() }
+                    .buttonStyle(.glmPrimary)
             }
         } else if currentSetIndex < totalSetsIncludingWarmup - 1 {
             if isWarmupSet {
-                Button(action: {
-                    recordCurrentSetAndStartRest(didFail: false)
-                }) {
-                    Text("Set Complete - Start Rest")
-                        .frame(maxWidth: .infinity)
-                        .padding(12)
-                        .foregroundColor(.white)
-                        .background(Color.accentColor)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .font(.headline)
-                }
+                Button("Set complete, start rest") { recordCurrentSetAndStartRest(didFail: false) }
+                    .buttonStyle(.glmPrimary)
             } else {
-                VStack(spacing: 10) {
-                    Button(action: {
-                        recordCurrentSetAndStartRest(didFail: false)
-                    }) {
-                        Text("Set Complete - Start Rest")
-                            .frame(maxWidth: .infinity)
-                            .padding(12)
-                            .foregroundColor(.white)
-                            .background(Color.accentColor)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .font(.headline)
-                    }
+                VStack(spacing: GLM.Space.listGap) {
+                    Button("Set complete, start rest") { recordCurrentSetAndStartRest(didFail: false) }
+                        .buttonStyle(.glmPrimary)
 
-                    Button(action: {
-                        recordCurrentSetAndStartRest(didFail: true)
-                    }) {
-                        Text("Mark Set Failed - Start Rest")
-                            .frame(maxWidth: .infinity)
-                            .padding(12)
-                            .foregroundColor(.white)
-                            .background(Color.red)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .font(.headline)
-                    }
+                    Button("Set failed, start rest") { recordCurrentSetAndStartRest(didFail: true) }
+                        .buttonStyle(.glmAttention)
                 }
             }
         } else if currentExerciseIndex < totalExercises - 1 {
             if isWarmupSet {
-                Button(action: {
-                    recordCurrentSetAndStartRest(didFail: false)
-                }) {
-                    Text("Exercise Complete - Start Rest")
-                        .frame(maxWidth: .infinity)
-                        .padding(12)
-                        .foregroundColor(.white)
-                        .background(Color.accentColor)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .font(.headline)
-                }
+                Button("Exercise complete, start rest") { recordCurrentSetAndStartRest(didFail: false) }
+                    .buttonStyle(.glmPrimary)
             } else {
-                VStack(spacing: 10) {
-                    Button(action: {
-                        recordCurrentSetAndStartRest(didFail: false)
-                    }) {
-                        Text("Exercise Complete - Start Rest")
-                            .frame(maxWidth: .infinity)
-                            .padding(12)
-                            .foregroundColor(.white)
-                            .background(Color.accentColor)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .font(.headline)
-                    }
+                VStack(spacing: GLM.Space.listGap) {
+                    Button("Exercise complete, start rest") { recordCurrentSetAndStartRest(didFail: false) }
+                        .buttonStyle(.glmPrimary)
 
-                    Button(action: {
-                        recordCurrentSetAndStartRest(didFail: true)
-                    }) {
-                        Text("Mark Set Failed - Start Rest")
-                            .frame(maxWidth: .infinity)
-                            .padding(12)
-                            .foregroundColor(.white)
-                            .background(Color.red)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .font(.headline)
-                    }
+                    Button("Set failed, start rest") { recordCurrentSetAndStartRest(didFail: true) }
+                        .buttonStyle(.glmAttention)
                 }
             }
         } else {
-            VStack(spacing: 10) {
-                Button(action: {
+            VStack(spacing: GLM.Space.listGap) {
+                Button("Finish workout") {
                     recordCurrentSetIfNeeded(didFail: false)
                     showingCompleteAlert = true
-                }) {
-                    Text("Finish Workout")
-                        .frame(maxWidth: .infinity)
-                        .padding(12)
-                        .foregroundColor(.white)
-                        .background(Color.green)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .font(.headline)
                 }
+                .buttonStyle(.glmPrimary)
 
                 if !isWarmupSet {
-                    Button(action: {
+                    Button("Final set failed, finish") {
                         recordCurrentSetIfNeeded(didFail: true)
                         showingCompleteAlert = true
-                    }) {
-                        Text("Mark Final Set Failed & Finish")
-                            .frame(maxWidth: .infinity)
-                            .padding(12)
-                            .foregroundColor(.white)
-                            .background(Color.red)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .font(.headline)
                     }
+                    .buttonStyle(.glmAttention)
                 }
             }
         }
     }
-    
+
     @ViewBuilder
     var nextSetPreviewView: some View {
         // Calculate next set info
         if currentSetIndex < totalSetsIncludingWarmup - 1, let exercise = currentExercise {
             // More sets in this exercise
             let nextSetIndex = currentSetIndex + 1
-            
+
             let currentWarmups = currentWarmupSets
             let nextSetInfo: (weight: Double, reps: Int, isWarmup: Bool) = {
                 if nextSetIndex < currentWarmups.count {
@@ -515,243 +393,115 @@ struct WorkoutSessionView: View {
             let nextWeight = nextSetInfo.weight
             let nextReps = nextSetInfo.reps
             let nextIsWarmup = nextSetInfo.isWarmup
-            
+
             let plates = exercise.getPlatesForWeight(nextWeight)
-            
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Next Set")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .bold()
-                
-                HStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Set \(nextSetIndex + 1) of \(totalSetsIncludingWarmup)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                        HStack(spacing: 8) {
-                            if nextIsWarmup {
-                                Text("Warmup")
-                                    .font(.caption)
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.orange)
-                                    .cornerRadius(4)
-                            }
-                            if exercise.isTimedExercise, let target = exercise.targetDurationSeconds {
-                                Text("\(target)s hold")
-                                    .font(.headline)
-                                    .bold()
-                                    .lineLimit(1)
-                            } else {
-                                Text(nextIsWarmup ? "\(nextReps) reps" : workSetRepsLabel(for: exercise))
-                                    .font(.headline)
-                                    .bold()
-                                    .lineLimit(1)
-                            }
-                        }
-                    }
 
-                    Spacer()
-
-                    if !exercise.isTimedExercise {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Weight")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                            Text(formatSetWeight(nextWeight))
-                                .font(.headline)
-                                .bold()
-                                .lineLimit(1)
-                            if !plates.isEmpty {
-                                Text(formatPlates(plates))
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.75)
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(12)
-            .background(Color(.tertiarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            previewCard(
+                eyebrow: "Next set",
+                title: "Set \(nextSetIndex + 1) of \(totalSetsIncludingWarmup)",
+                repsLabel: exercise.isTimedExercise
+                    ? "\(exercise.targetDurationSeconds ?? 0)s hold"
+                    : (nextIsWarmup ? "\(nextReps) reps" : workSetRepsLabel(for: exercise)),
+                isWarmup: nextIsWarmup,
+                weight: exercise.isTimedExercise ? nil : nextWeight,
+                plates: plates
+            )
         } else if currentExerciseIndex < totalExercises - 1 {
             // Next exercise
             let nextExercise = workout.exercises[currentExerciseIndex + 1]
             let workWeight = targetWorkWeight(for: nextExercise)
             let nextWarmups = warmupSetsPerExercise[nextExercise.name] ?? []
-            
+
             let firstSetWeight = nextWarmups.isEmpty ? workWeight : nextWarmups[0].weight
             let firstSetReps = nextWarmups.isEmpty ? (nextExercise.repsPerSet ?? 0) : nextWarmups[0].reps
             let firstSetIsWarmup = !nextWarmups.isEmpty
             let plates = nextExercise.getPlatesForWeight(firstSetWeight)
-            
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Next Exercise")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .bold()
-                
-                HStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(nextExercise.name)
-                            .font(.headline)
-                            .bold()
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                        HStack(spacing: 8) {
-                            if firstSetIsWarmup {
-                                Text("Warmup")
-                                    .font(.caption)
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.orange)
-                                    .cornerRadius(4)
-                            }
-                            if nextExercise.isTimedExercise, let target = nextExercise.targetDurationSeconds {
-                                Text("\(target)s hold")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            } else {
-                                Text(firstSetIsWarmup ? "\(firstSetReps) reps" : workSetRepsLabel(for: nextExercise))
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
 
-                    Spacer()
-
-                    if !nextExercise.isTimedExercise {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Weight")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                            Text(formatSetWeight(firstSetWeight))
-                                .font(.headline)
-                                .bold()
-                                .lineLimit(1)
-                            if !plates.isEmpty {
-                                Text(formatPlates(plates))
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.75)
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(12)
-            .background(Color(.tertiarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            previewCard(
+                eyebrow: "Next exercise",
+                title: nextExercise.name,
+                repsLabel: nextExercise.isTimedExercise
+                    ? "\(nextExercise.targetDurationSeconds ?? 0)s hold"
+                    : (firstSetIsWarmup ? "\(firstSetReps) reps" : workSetRepsLabel(for: nextExercise)),
+                isWarmup: firstSetIsWarmup,
+                weight: nextExercise.isTimedExercise ? nil : firstSetWeight,
+                plates: plates
+            )
         } else {
             EmptyView()
         }
     }
 
-    @ViewBuilder
-    var heartRateOverview: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: healthStore.currentHeartRate != nil ? "waveform.path.ecg" : "heart")
-                    .font(.title3)
-                    .foregroundColor(healthStore.currentHeartRate != nil ? .red : .secondary)
+    private func previewCard(eyebrow: String, title: String, repsLabel: String, isWarmup: Bool, weight: Double?, plates: [Double]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(eyebrow).glmEyebrow()
 
-                VStack(alignment: .leading, spacing: 2) {
-                    if let heartRate = healthStore.currentHeartRate {
-                        Text("\(Int(heartRate.rounded())) bpm")
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                            .lineLimit(1)
-                    } else {
-                        Text("No heart rate yet")
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).glmText(.rowTitle)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                    HStack(spacing: 8) {
+                        Text(repsLabel).glmText(.readout)
+                        if isWarmup { warmupTag }
                     }
-                    Text(healthStore.heartRateStatusDescription)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
                 }
 
                 Spacer()
-                if healthStore.isReceivingHeartRate {
-                    Circle()
-                        .fill(Color.red)
-                        .frame(width: 10, height: 10)
-                        .shadow(radius: 1)
+
+                if let weight {
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text(formatSetWeight(weight)).glmText(.rowValue, color: GLM.cyan)
+                            .lineLimit(1)
+                        if !plates.isEmpty {
+                            Text(formatPlates(plates)).glmText(.readout)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+                        }
+                    }
                 }
             }
         }
-        .padding(16)
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .glmCard(padding: EdgeInsets(top: 14, leading: 18, bottom: 14, trailing: 18))
     }
-    
+
+    @ViewBuilder
+    var heartRateOverview: some View {
+        HStack(spacing: 12) {
+            GLMIconTile(glyph: "❤️", size: 38)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Heart rate").glmText(.cardTitle)
+                Text(healthStore.currentHeartRate != nil ? "Live from Health" : "Appears once Health has samples")
+                    .glmText(.caption)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            Spacer()
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Text(healthStore.currentHeartRate.map { "\(Int($0.rounded()))" } ?? "--")
+                    .glmText(.metric, color: GLM.cyan)
+                Text("bpm").glmText(.unit)
+            }
+        }
+        .glmCard(padding: EdgeInsets(top: 14, leading: 18, bottom: 14, trailing: 20))
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Button(action: {
-                    showingEndSessionConfirmation = true
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                        Text("Back")
-                    }
-                    .foregroundColor(.blue)
-                }
-                .disabled(isSessionEnding)
-                Spacer()
-                HStack {
-                    Image(systemName: "timer")
-                        .font(.subheadline)
-                    Text(timeString)
-                        .font(.subheadline)
-                        .monospacedDigit()
-                }
-                .foregroundColor(.secondary)
-                Spacer()
-                Button(action: {
-                    showingEndSessionConfirmation = true
-                }) {
-                    Text("End Session")
-                        .font(.subheadline)
-                        .foregroundColor(.red)
-                }
-                .disabled(isSessionEnding)
+            GLMScreenHeader(workout.name, subtitle: "Exercise \(currentExerciseIndex + 1) of \(totalExercises) · \(timeString)", onBack: {
+                showingEndSessionConfirmation = true
+            }) {
+                Button("End") { showingEndSessionConfirmation = true }
+                    .buttonStyle(GLMButtonStyle(variant: .attention, size: .sm, block: false, pill: true))
+                    .disabled(isSessionEnding)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
-            .padding(.bottom, 12)
 
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: GLM.Space.cardGap) {
+                    GLMMetricBar(fraction: exerciseProgress, color: GLM.purple, height: 6)
+                        .padding(.horizontal, 2)
+
                     heartRateOverview
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(workout.name)
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.8)
-
-                        ProgressView(value: exerciseProgress)
-                            .tint(.accentColor)
-
-                        Text("Exercise \(currentExerciseIndex + 1) of \(totalExercises)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(16)
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
                     if isCurrentExerciseTimed {
                         timedExerciseDetailView
@@ -759,17 +509,19 @@ struct WorkoutSessionView: View {
                         exerciseDetailView
                     }
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, GLM.Space.gutter)
+                .padding(.top, 16)
                 .padding(.bottom, 16)
             }
 
-            VStack(spacing: 12) {
+            VStack(spacing: GLM.Space.listGap) {
                 actionButtonView
             }
-            .padding(16)
+            .padding(.horizontal, GLM.Space.gutter)
+            .padding(.vertical, 12)
             .disabled(isSessionEnding)
         }
-        .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        .glmScreen()
         .overlay(alignment: .top) {
             recordBannerView
         }
@@ -803,37 +555,6 @@ struct WorkoutSessionView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 announceExerciseInfo()
                 hasAnnouncedFirstExercise = true
-                // Send initial workout update to watch after a brief delay
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    sendWorkoutUpdateToWatch()
-                }
-            }
-            
-            // Listen for watch messages
-            NotificationCenter.default.addObserver(
-                forName: NSNotification.Name("WatchSetComplete"),
-                object: nil,
-                queue: .main
-            ) { notification in
-                if let didFail = notification.userInfo?["didFail"] as? Bool {
-                    recordCurrentSetAndStartRest(didFail: didFail)
-                }
-            }
-            
-            NotificationCenter.default.addObserver(
-                forName: NSNotification.Name("WatchSkipRest"),
-                object: nil,
-                queue: .main
-            ) { _ in
-                completeRest()
-            }
-            
-            NotificationCenter.default.addObserver(
-                forName: NSNotification.Name("WatchEndWorkout"),
-                object: nil,
-                queue: .main
-            ) { _ in
-                showingEndSessionConfirmation = true
             }
         }
         .onDisappear {
@@ -846,7 +567,6 @@ struct WorkoutSessionView: View {
             Task {
                 await endLiveActivity()
             }
-            NotificationCenter.default.removeObserver(self)
         }
         .onChange(of: currentExerciseIndex) {
             // Announce when moving to a new exercise
@@ -858,25 +578,21 @@ struct WorkoutSessionView: View {
             Task {
                 await updateLiveActivity()
             }
-            sendWorkoutUpdateToWatch()
         }
         .onChange(of: currentSetIndex) {
             Task {
                 await updateLiveActivity()
             }
-            sendWorkoutUpdateToWatch()
         }
         .onChange(of: onRestTimer) {
             Task {
                 await updateLiveActivity()
             }
-            sendWorkoutUpdateToWatch()
         }
         .onChange(of: restEndsAt) {
             Task {
                 await updateLiveActivity()
             }
-            sendWorkoutUpdateToWatch()
         }
         .onChange(of: scenePhase) {
             if scenePhase == .active {
@@ -941,30 +657,16 @@ struct WorkoutSessionView: View {
     private var recordBannerView: some View {
         if let record = celebratedRecord {
             HStack(spacing: 12) {
-                Image(systemName: "trophy.fill")
-                    .font(.title2)
-                    .foregroundColor(.white)
+                GLMBadgeTile(glyph: "🏅")
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("New Personal Record!")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                    Text("\(record.exerciseName) — \(String(format: "%.1f", record.weight)) kg")
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.9))
+                    Text("New personal record").glmText(.cardTitle)
+                    Text("\(record.exerciseName) · \(GLMFormat.kg(record.weight))").glmText(.readout)
                 }
                 Spacer()
             }
-            .padding(16)
-            .background(
-                LinearGradient(
-                    colors: [.orange, .yellow],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .shadow(color: .orange.opacity(0.4), radius: 8, y: 4)
-            .padding(.horizontal, 16)
+            .glmCard(.featured, padding: EdgeInsets(top: 14, leading: 18, bottom: 14, trailing: 18))
+            .shadow(color: GLM.badgeShadow, radius: 17, x: 0, y: 14)
+            .padding(.horizontal, GLM.Space.gutter)
             .padding(.top, 44)
             .transition(.move(edge: .top).combined(with: .opacity))
         }
@@ -1318,95 +1020,11 @@ struct WorkoutSessionView: View {
 
 extension WorkoutSessionView {
     private func announceRestEnding() {
-        healthStore.sendWatchRestCue(.tMinus10)
         speechSynthesizer.speakRestEnding()
     }
 
     private func announceRestComplete() {
-        healthStore.sendWatchRestCue(.restComplete)
         speechSynthesizer.speakRestComplete()
-    }
-
-    private func sendWorkoutUpdateToWatch() {
-        guard !isSessionEnding else { return }
-        guard let exercise = currentExercise else { return }
-        let plates = exercise.getPlatesForWeight(currentSetWeight)
-        // Non-barbell exercises have no plates or bar — describe the load itself
-        let platesDescription = exercise.usesBarbellLoading
-            ? formatPlatesForSpeech(plates)
-            : formatSetWeight(currentSetWeight)
-
-        // Compute next set info for the watch to display during rest
-        var nextSetWeight: Double?
-        var nextSetReps: Int?
-        var nextSetPlatesDescription: String?
-        var nextSetLabel: String?
-        var nextSetIsWarmup: Bool?
-        var nextExerciseName: String?
-
-        if currentSetIndex < totalSetsIncludingWarmup - 1 {
-            let nextIdx = currentSetIndex + 1
-            if nextIdx < currentWarmupSets.count {
-                nextSetWeight = currentWarmupSets[nextIdx].weight
-                nextSetReps = currentWarmupSets[nextIdx].reps
-                nextSetIsWarmup = true
-            } else {
-                let workSetIndex = nextIdx - currentWarmupSets.count
-                nextSetWeight = workSetWeight(for: exercise, workSetNumber: workSetIndex + 1)
-                nextSetReps = exercise.repsPerSet ?? 0
-                nextSetIsWarmup = false
-            }
-            if let w = nextSetWeight, exercise.usesBarbellLoading {
-                nextSetPlatesDescription = formatPlatesForSpeech(exercise.getPlatesForWeight(w))
-            }
-            nextSetLabel = "Set \(nextIdx + 1)/\(totalSetsIncludingWarmup)"
-            nextExerciseName = exercise.name
-        } else if currentExerciseIndex < totalExercises - 1 {
-            let nextExercise = workout.exercises[currentExerciseIndex + 1]
-            let nextWarmups = warmupSetsPerExercise[nextExercise.name] ?? []
-            let nextTotalSets = nextWarmups.count + nextExercise.sets
-            if nextWarmups.isEmpty {
-                nextSetWeight = targetWorkWeight(for: nextExercise)
-                nextSetReps = nextExercise.repsPerSet ?? 0
-                nextSetIsWarmup = false
-            } else {
-                nextSetWeight = nextWarmups[0].weight
-                nextSetReps = nextWarmups[0].reps
-                nextSetIsWarmup = true
-            }
-            if let w = nextSetWeight, nextExercise.usesBarbellLoading {
-                nextSetPlatesDescription = formatPlatesForSpeech(nextExercise.getPlatesForWeight(w))
-            }
-            nextSetLabel = "Set 1/\(nextTotalSets)"
-            nextExerciseName = nextExercise.name
-        }
-
-        // A zero weight means a bodyweight exercise — don't show "0.0 kg" on the watch
-        if let w = nextSetWeight, w <= 0 {
-            nextSetWeight = nil
-        }
-
-        healthStore.sendWorkoutUpdate(
-            workoutName: workout.name,
-            exerciseName: exercise.name,
-            currentExerciseIndex: currentExerciseIndex,
-            totalExercises: totalExercises,
-            currentSetIndex: currentSetIndex,
-            totalSetsIncludingWarmup: totalSetsIncludingWarmup,
-            currentSetWeight: currentSetWeight,
-            currentSetReps: currentSetReps,
-            isWarmupSet: isWarmupSet,
-            isResting: onRestTimer,
-            restEndDate: restEndsAt,
-            platesDescription: platesDescription,
-            workoutStartDate: workoutStartDate,
-            nextSetWeight: nextSetWeight,
-            nextSetReps: nextSetReps,
-            nextSetPlatesDescription: nextSetPlatesDescription,
-            nextSetLabel: nextSetLabel,
-            nextExerciseName: nextExerciseName,
-            nextSetIsWarmup: nextSetIsWarmup
-        )
     }
 
     private func scheduleRestCompleteNotification() {

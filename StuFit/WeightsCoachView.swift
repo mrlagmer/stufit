@@ -37,187 +37,42 @@ struct WeightsCoachView: View {
     var displayedWorkout: ProgramWorkout? {
         workoutOverride ?? nextWorkout
     }
-    
+
+    private var hasActiveProgram: Bool {
+        healthStore.activeWeightProgram?.isActive == true && displayedWorkout != nil
+    }
+
+    private var headerTitle: String {
+        if hasActiveProgram { return "Today's workout" }
+        if selectedProgram != nil { return "\(selectedDays ?? 3)-day program" }
+        return "Weights"
+    }
+
     var body: some View {
-        ZStack {
+        VStack(spacing: 0) {
+            GLMScreenHeader(headerTitle, subtitle: "Weights coach", onBack: {
+                if selectedDays != nil {
+                    // If days are selected, go back to day selection
+                    selectedDays = nil
+                } else {
+                    // If on initial screen, exit the view
+                    onBack()
+                }
+            }) {
+                if hasActiveProgram {
+                    Button("Edit") {
+                        showingEditMenu = true
+                        editMode = .selectAction
+                    }
+                    .buttonStyle(GLMButtonStyle(variant: .outline, size: .sm, block: false, pill: true))
+                }
+            }
+
             ScrollView {
-                VStack(spacing: 16) {
-                    // Header with back button
-                    HStack {
-                        Button(action: {
-                            if selectedDays != nil {
-                                // If days are selected, go back to day selection
-                                selectedDays = nil
-                            } else {
-                                // If on initial screen, exit the view
-                                onBack()
-                            }
-                        }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "chevron.left")
-                                Text("Back")
-                            }
-                            .foregroundColor(.blue)
-                        }
-                        Spacer()
-                        Text("Weights Coach")
-                            .font(.headline)
-                            .bold()
-                    }
-                    .padding(16)
-                    
-                    // Show active workout if there's an active program
+                VStack(spacing: GLM.Space.cardGap) {
                     if let activeProgram = healthStore.activeWeightProgram, activeProgram.isActive, let workout = displayedWorkout {
-                        // Show today's scheduled workout
-                        VStack(alignment: .leading, spacing: 16) {
-                            // Workout header with edit button
-                            HStack {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Today's Workout")
-                                        .font(.title3)
-                                        .fontWeight(.semibold)
-                                    if availableWorkouts.count > 1 {
-                                        Menu {
-                                            ForEach(availableWorkouts, id: \.name) { option in
-                                                Button(action: {
-                                                    workoutOverride = option
-                                                    Task { await healthStore.generateWorkoutTip(for: option) }
-                                                }) {
-                                                    if option.name == workout.name {
-                                                        Label(option.name, systemImage: "checkmark")
-                                                    } else {
-                                                        Text(option.name)
-                                                    }
-                                                }
-                                            }
-                                        } label: {
-                                            HStack(spacing: 4) {
-                                                Text(workout.name)
-                                                    .font(.headline)
-                                                    .foregroundColor(.secondary)
-                                                Image(systemName: "chevron.up.chevron.down")
-                                                    .font(.caption2)
-                                                    .foregroundColor(.secondary)
-                                            }
-                                            .lineLimit(1)
-                                            .minimumScaleFactor(0.85)
-                                        }
-                                    } else {
-                                        Text(workout.name)
-                                            .font(.headline)
-                                            .foregroundColor(.secondary)
-                                            .lineLimit(1)
-                                            .minimumScaleFactor(0.85)
-                                    }
-                                }
-                                Spacer()
-                                Button(action: {
-                                    showingEditMenu = true
-                                    editMode = .selectAction
-                                }) {
-                                    Image(systemName: "pencil.circle")
-                                        .font(.title2)
-                                        .foregroundColor(.blue)
-                                }
-                            }
-                            .padding(16)
-                            .background(Color(.secondarySystemBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            
-                            // AI Workout Tip
-                            if healthStore.isGeneratingAdvice || healthStore.workoutTip != nil {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    HStack {
-                                        Image(systemName: "lightbulb.fill")
-                                            .foregroundColor(.yellow)
-                                        Text("Tip for Today")
-                                            .font(.headline)
-                                            .bold()
-                                        Spacer()
-                                        if healthStore.isGeneratingAdvice {
-                                            ProgressView()
-                                                .scaleEffect(0.8)
-                                        }
-                                    }
-                                    
-                                    if let tip = healthStore.workoutTip {
-                                        VStack(alignment: .leading, spacing: 8) {
-                                            Text(tip)
-                                                .font(.body)
-                                                .lineLimit(nil)
-                                                .foregroundColor(.primary)
-                                                .animation(.easeInOut(duration: 0.15), value: tip)
-                                        }
-                                    } else {
-                                        HStack(spacing: 4) {
-                                            Text("Generating personalized tip")
-                                                .font(.body)
-                                                .foregroundColor(.secondary)
-                                            TypingIndicator()
-                                        }
-                                    }
-                                }
-                                .padding(16)
-                                .background(Color(.secondarySystemBackground))
-                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            }
-                            
-                            // Exercises for this workout
-                            VStack(spacing: 12) {
-                                ForEach(workout.exercises.indices, id: \.self) { index in
-                                    let exercise = workout.exercises[index]
-                                    let setWeight = healthStore.getNextWorkWeight(for: exercise)
-                                    let plates = exercise.getPlatesForWeight(setWeight)
-                                    let platesString = formatPlates(plates)
-                                    
-                                    HStack(spacing: 12) {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(exercise.name)
-                                                .font(.body)
-                                                .bold()
-                                                .lineLimit(1)
-                                                .minimumScaleFactor(0.8)
-                                            HStack(spacing: 12) {
-                                                Text("\(exercise.sets) × \(exercise.reps)")
-                                                    .font(.caption)
-                                                    .foregroundColor(.secondary)
-                                                Text(setWeight > 0 ? "@ \(String(format: "%.1f", setWeight)) kg" : "Bodyweight")
-                                                    .font(.caption)
-                                                    .foregroundColor(.blue)
-                                                    .lineLimit(1)
-                                            }
-                                            if !plates.isEmpty {
-                                                Text(platesString)
-                                                    .font(.caption2)
-                                                    .foregroundColor(.secondary)
-                                                    .lineLimit(1)
-                                                    .minimumScaleFactor(0.75)
-                                            }
-                                        }
-                                        Spacer()
-                                    }
-                                    .padding(12)
-                                    .background(Color(.tertiarySystemBackground))
-                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                }
-                            }
-                            
-                            // Start workout button
-                            NavigationLink(destination: WorkoutSessionView(healthStore: healthStore, workout: workout, onBack: {
-                                onBack()
-                            })) {
-                                Text("Start Workout")
-                                    .frame(maxWidth: .infinity)
-                                    .padding(12)
-                                    .foregroundColor(.white)
-                                    .background(Color.accentColor)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                    .font(.headline)
-                            }
-                        }
-                    }
-                    // Show program if days are selected
-                    else if let program = selectedProgram {
+                        activeWorkoutSection(workout)
+                    } else if let program = selectedProgram {
                         ProgramView(program: program, selectedDays: selectedDays ?? 3, onActivate: {
                             healthStore.activeWeightProgram = WeightProgram(
                                 id: UUID(),
@@ -228,120 +83,17 @@ struct WeightsCoachView: View {
                             onBack()
                         })
                     } else {
-                        // Show day selection and AI suggestion
-                        // AI Suggestion
                         if healthStore.isGeneratingAdvice || healthStore.weightsSuggestion != nil {
-                            VStack(alignment: .leading, spacing: 12) {
-                                HStack {
-                                    Image(systemName: "sparkles")
-                                        .foregroundColor(.orange)
-                                    Text("AI Recommendation")
-                                        .font(.headline)
-                                        .bold()
-                                    Spacer()
-                                    if healthStore.isGeneratingAdvice {
-                                        ProgressView()
-                                            .scaleEffect(0.8)
-                                    }
-                                }
-                                
-                                if let suggestion = healthStore.weightsSuggestion {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Text(suggestion.recommendation)
-                                            .font(.body)
-                                            .lineLimit(nil)
-                                            .foregroundColor(.primary)
-                                            .animation(.easeInOut(duration: 0.15), value: suggestion.recommendation)
-                                        
-                                        if let reasoning = suggestion.reasoning {
-                                            Text(reasoning)
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                                .lineLimit(nil)
-                                        }
-                                    }
-                                } else {
-                                    HStack(spacing: 4) {
-                                        Text("Analyzing your fitness data")
-                                            .font(.body)
-                                            .foregroundColor(.secondary)
-                                        TypingIndicator()
-                                    }
-                                }
-                            }
-                            .padding(16)
-                            .background(Color(.secondarySystemBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            recommendationCard
                         }
-                        
-                        // Days per week selection
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("How many days per week can you commit to lifting?")
-                                .font(.headline)
-                                .bold()
-                                .lineLimit(2)
-                                .minimumScaleFactor(0.85)
-                            
-                            Text("This helps us build a personalized program that fits your schedule.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            
-                            VStack(spacing: 12) {
-                                ForEach(1...5, id: \.self) { days in
-                                    let isSelected = selectedDays == days
-                                    Button(action: {
-                                        selectedDays = days
-                                        healthStore.setWeightsProgramDays(days)
-                                    }) {
-                                        HStack(spacing: 12) {
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text("\(days) \(days == 1 ? "Day" : "Days")")
-                                                    .font(.headline)
-                                                    .foregroundColor(isSelected ? .white : .primary)
-                                                
-                                                if days == 3 {
-                                                    Text("Most popular")
-                                                        .font(.caption)
-                                                        .foregroundColor(isSelected ? .white.opacity(0.85) : .secondary)
-                                                } else if days == 4 {
-                                                    Text("Advanced lifters")
-                                                        .font(.caption)
-                                                        .foregroundColor(isSelected ? .white.opacity(0.85) : .secondary)
-                                                }
-                                            }
-                                            
-                                            Spacer()
-                                            
-                                            if isSelected {
-                                                Image(systemName: "checkmark.circle.fill")
-                                                    .font(.headline)
-                                                    .foregroundColor(.white)
-                                            }
-                                        }
-                                        .frame(maxWidth: .infinity)
-                                        .padding(12)
-                                        .background(
-                                            isSelected ?
-                                            Color.accentColor :
-                                            Color(.tertiarySystemBackground)
-                                        )
-                                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                    }
-                                }
-                            }
-                        }
-                        .padding(16)
-                        .background(Color(.secondarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        daysPerWeekCard
                     }
-                    
-                    Spacer()
                 }
-                .padding(16)
+                .padding(.horizontal, GLM.Space.gutter)
+                .padding(.top, GLM.Space.cardGap)
+                .padding(.bottom, 32)
             }
         }
-        .background(Color(.systemGroupedBackground))
-        .navigationBarHidden(true)
         .sheet(isPresented: $showingEditMenu) {
             EditWeightsProgramView(
                 isPresented: $showingEditMenu,
@@ -368,6 +120,195 @@ struct WeightsCoachView: View {
             }
         }
     }
+
+    // MARK: - Active program
+
+    @ViewBuilder
+    private func activeWorkoutSection(_ workout: ProgramWorkout) -> some View {
+        // Workout picker
+        HStack(spacing: 12) {
+            GLMIconTile(glyph: "🏋️")
+            VStack(alignment: .leading, spacing: 2) {
+                if availableWorkouts.count > 1 {
+                    Menu {
+                        ForEach(availableWorkouts, id: \.name) { option in
+                            Button(action: {
+                                workoutOverride = option
+                                Task { await healthStore.generateWorkoutTip(for: option) }
+                            }) {
+                                if option.name == workout.name {
+                                    Label(option.name, systemImage: "checkmark")
+                                } else {
+                                    Text(option.name)
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Text(workout.name).glmText(.rowTitle)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(GLM.inkMuted)
+                        }
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                    }
+                } else {
+                    Text(workout.name).glmText(.rowTitle)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
+                Text("Next in rotation · \(workout.exercises.count) exercises").glmText(.caption)
+            }
+            Spacer()
+        }
+        .glmCard(padding: EdgeInsets(top: 16, leading: 18, bottom: 16, trailing: 18))
+
+        if healthStore.isGeneratingAdvice || healthStore.workoutTip != nil {
+            VStack(alignment: .leading, spacing: 10) {
+                GLMSectionHeader("Tip for today") {
+                    if healthStore.isGeneratingAdvice {
+                        ProgressView().controlSize(.small).tint(GLM.inkMuted)
+                    }
+                }
+
+                if let tip = healthStore.workoutTip {
+                    Text(tip)
+                        .glmText(.body, color: GLM.inkBody)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .animation(.easeInOut(duration: 0.15), value: tip)
+                } else {
+                    HStack(spacing: 6) {
+                        Text("Reading your recent sessions").glmText(.body)
+                        TypingIndicator()
+                    }
+                }
+            }
+            .glmCard()
+        }
+
+        VStack(alignment: .leading, spacing: 14) {
+            GLMSectionHeader("Exercises")
+
+            VStack(spacing: 12) {
+                ForEach(workout.exercises.indices, id: \.self) { index in
+                    let exercise = workout.exercises[index]
+                    let setWeight = healthStore.getNextWorkWeight(for: exercise)
+                    let plates = exercise.getPlatesForWeight(setWeight)
+
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(exercise.name).glmText(.cardTitle)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                            Text(plates.isEmpty
+                                 ? "\(exercise.sets) × \(exercise.reps)"
+                                 : "\(exercise.sets) × \(exercise.reps) · \(formatPlates(plates))")
+                                .glmText(.readout)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+                        }
+                        Spacer()
+                        Text(setWeight > 0 ? GLMFormat.kg(setWeight) : "Bodyweight")
+                            .glmText(.rowValue, color: GLM.cyan)
+                            .lineLimit(1)
+                    }
+                }
+            }
+
+            NavigationLink(destination: WorkoutSessionView(healthStore: healthStore, workout: workout, onBack: {
+                onBack()
+            })) {
+                Text("Start workout")
+            }
+            .buttonStyle(.glmPrimary)
+            .padding(.top, 4)
+        }
+        .glmCard()
+    }
+
+    // MARK: - Program setup
+
+    private var recommendationCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            GLMSectionHeader("Recommendation") {
+                if healthStore.isGeneratingAdvice {
+                    ProgressView().controlSize(.small).tint(GLM.inkMuted)
+                }
+            }
+
+            if let suggestion = healthStore.weightsSuggestion {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(suggestion.recommendation)
+                        .glmText(.body, color: GLM.inkBody)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .animation(.easeInOut(duration: 0.15), value: suggestion.recommendation)
+
+                    if let reasoning = suggestion.reasoning {
+                        Text(reasoning)
+                            .glmText(.caption)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            } else {
+                HStack(spacing: 6) {
+                    Text("Looking at your fitness data").glmText(.body)
+                    TypingIndicator()
+                }
+            }
+        }
+        .glmCard()
+    }
+
+    private var daysPerWeekCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("How many days a week can you lift?")
+                    .glmText(.rowTitle)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("This sets the program you'll rotate through.")
+                    .glmText(.caption)
+            }
+
+            VStack(spacing: GLM.Space.listGap) {
+                ForEach(1...5, id: \.self) { days in
+                    let isSelected = selectedDays == days
+                    Button(action: {
+                        selectedDays = days
+                        healthStore.setWeightsProgramDays(days)
+                    }) {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("\(days) \(days == 1 ? "day" : "days")").glmText(.rowTitle)
+                                if days == 3 {
+                                    Text("Most popular").glmText(.caption)
+                                } else if days == 4 {
+                                    Text("Advanced lifters").glmText(.caption)
+                                }
+                            }
+                            Spacer()
+                            if isSelected {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(GLM.purple)
+                            }
+                        }
+                        .glmRow(.inset)
+                        .overlay {
+                            if isSelected {
+                                RoundedRectangle(cornerRadius: GLM.Radius.cardSm, style: .continuous)
+                                    .strokeBorder(GLM.purple, lineWidth: 1)
+                            }
+                        }
+                    }
+                    .buttonStyle(.glmPress)
+                }
+            }
+        }
+        .glmCard()
+    }
 }
 
 // Program view to display the selected workout program
@@ -375,73 +316,49 @@ struct ProgramView: View {
     let program: WorkoutProgramTemplate
     let selectedDays: Int
     var onActivate: () -> Void = {}
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Program header
-            VStack(alignment: .leading, spacing: 8) {
-                Text("\(selectedDays) Day Program")
-                    .font(.title2)
-                    .bold()
-                Text("Here's your personalized workout program")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+        VStack(alignment: .leading, spacing: GLM.Space.cardGap) {
+            HStack(spacing: 12) {
+                GLMIconTile(glyph: "🏋️")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(selectedDays)-day program").glmText(.rowTitle)
+                    Text("Rotate through these sessions in order.").glmText(.caption)
+                }
+                Spacer()
             }
-            .padding(16)
-            .background(Color(.secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            
-            // Workouts
-            VStack(spacing: 12) {
-                ForEach(program.workouts.indices, id: \.self) { index in
-                    let workout = program.workouts[index]
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text(workout.name)
-                            .font(.headline)
-                            .bold()
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(workout.exercises.indices, id: \.self) { exerciseIndex in
-                                let exercise = workout.exercises[exerciseIndex]
-                                HStack(spacing: 12) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(exercise.name)
-                                            .font(.body)
-                                            .bold()
-                                        Text("\(exercise.sets) × \(exercise.reps)")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    Spacer()
-                                }
-                                .padding(12)
-                                .background(Color(.tertiarySystemBackground))
-                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .glmCard(.featured, padding: EdgeInsets(top: 16, leading: 18, bottom: 16, trailing: 18))
+
+            ForEach(program.workouts.indices, id: \.self) { index in
+                let workout = program.workouts[index]
+                VStack(alignment: .leading, spacing: 12) {
+                    GLMSectionHeader(workout.name)
+
+                    VStack(spacing: 10) {
+                        ForEach(workout.exercises.indices, id: \.self) { exerciseIndex in
+                            let exercise = workout.exercises[exerciseIndex]
+                            HStack(spacing: 12) {
+                                Text(exercise.name).glmText(.cardTitle)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
+                                Spacer()
+                                Text("\(exercise.sets) × \(exercise.reps)").glmText(.readout)
                             }
                         }
                     }
-                    .padding(16)
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
+                .glmCard()
             }
-            
-            // Activate button
-            Button(action: onActivate) {
-                Text("Activate Program")
-                    .frame(maxWidth: .infinity)
-                    .padding(12)
-                    .foregroundColor(.white)
-                    .background(Color.accentColor)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .font(.headline.weight(.semibold))
-            }
+
+            Button("Activate program", action: onActivate)
+                .buttonStyle(.glmPrimary)
+                .padding(.top, 6)
         }
     }
 }
 
 #Preview {
-    WeightsCoachView(healthStore: HealthStore())
+    WeightsCoachView(healthStore: HealthStore()).glmScreen()
 }
 
 // MARK: - Edit Weights Program View
@@ -457,45 +374,18 @@ struct EditWeightsProgramView: View {
     @State private var showDeloadOptions = false
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text("Edit Program")
-                .font(.title2)
-                .bold()
-                .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
+        VStack(spacing: 0) {
+            GLMScreenHeader("Edit program", subtitle: "Weights")
 
-            VStack(spacing: 12) {
-                // Change Program Option
-                Button(action: {
+            VStack(spacing: GLM.Space.listGap) {
+                optionRow(glyph: "🔁", title: "Change program", subtitle: "Pick a different number of days per week") {
                     // Clear the active program and reset to day selection
                     healthStore.activeWeightProgram = nil
                     selectedDays = nil
                     isPresented = false
-                }) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "arrow.triangle.swap")
-                            .font(.headline)
-                            .foregroundColor(.blue)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Change Program")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                            Text("Select a different number of days per week")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(10)
                 }
 
-                // Edit Weights Option
-                Button(action: {
+                optionRow(glyph: "⚖️", title: "Edit weights", subtitle: "Set the working weight for each exercise") {
                     // Initialize editedWeights with current weights before opening
                     if let exercises = nextWorkout?.exercises {
                         for exercise in exercises {
@@ -504,70 +394,24 @@ struct EditWeightsProgramView: View {
                         }
                     }
                     showEditWeights = true
-                }) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "scalemass")
-                            .font(.headline)
-                            .foregroundColor(.blue)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Edit Weights")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                            Text("Adjust the weight for each exercise")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(10)
                 }
 
-                // Deload Weights Option
-                Button(action: { showDeloadOptions = true }) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "arrow.down.circle")
-                            .font(.headline)
-                            .foregroundColor(.orange)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Deload Weights")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                            Text("Reduce all weights after a break")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(10)
+                optionRow(glyph: "🌅", title: "Deload weights", subtitle: "Reduce every weight after a break") {
+                    showDeloadOptions = true
                 }
             }
-            .padding(16)
+            .padding(.horizontal, GLM.Space.gutterTight)
+            .padding(.top, 16)
 
             Spacer()
 
-            Button(action: {
-                isPresented = false
-            }) {
-                Text("Done")
-                    .frame(maxWidth: .infinity)
-                    .padding(12)
-                    .foregroundColor(.white)
-                    .background(Color(red: 0.25, green: 0.50, blue: 0.82))
-                    .cornerRadius(10)
-                    .font(.headline)
-            }
-            .padding(16)
+            Button("Done") { isPresented = false }
+                .buttonStyle(.glmOutline)
+                .padding(.horizontal, GLM.Space.gutter)
+                .padding(.bottom, 16)
         }
+        .glmScreen()
+        .presentationBackground(GLM.appBg)
         .sheet(isPresented: $showEditWeights) {
             EditWeightsDetailView(
                 isPresented: $isPresented,
@@ -581,6 +425,26 @@ struct EditWeightsProgramView: View {
             DeloadOptionsView(isPresented: $showDeloadOptions, healthStore: healthStore)
         }
     }
+
+    private func optionRow(glyph: String, title: String, subtitle: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 13) {
+                GLMIconTile(glyph: glyph)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).glmText(.rowTitle)
+                    Text(subtitle).glmText(.caption)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(GLM.inkMuted)
+            }
+            .glmRow()
+        }
+        .buttonStyle(.glmPress)
+    }
 }
 
 // MARK: - Deload Options View
@@ -592,67 +456,53 @@ struct DeloadOptionsView: View {
     @State private var showConfirm = false
 
     private let options: [(percent: Int, label: String, subtitle: String)] = [
-        (10, "10% Deload", "Short break — 1 to 2 weeks off"),
-        (15, "15% Deload", "Medium break — 2 to 4 weeks off"),
-        (20, "20% Deload", "Extended break — 4 or more weeks off")
+        (10, "10% deload", "Short break · 1 to 2 weeks off"),
+        (15, "15% deload", "Medium break · 2 to 4 weeks off"),
+        (20, "20% deload", "Extended break · 4 or more weeks off")
     ]
 
     var body: some View {
         VStack(spacing: 0) {
-            Text("Deload Weights")
-                .font(.title2)
-                .bold()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(16)
+            GLMScreenHeader("Deload weights", subtitle: "Weights")
 
-            Text("Reducing your training weights after a break helps you ease back in safely and avoid injury. Choose a deload amount based on how long you've been away.")
-                .font(.body)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 16)
+            Text("Dropping your training weights after a break eases you back in and lowers injury risk. Choose by how long you've been away.")
+                .glmText(.body)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, GLM.Space.gutter)
+                .padding(.top, 16)
                 .padding(.bottom, 16)
 
-            VStack(spacing: 12) {
+            VStack(spacing: GLM.Space.listGap) {
                 ForEach(options, id: \.percent) { option in
                     Button(action: {
                         selectedPercent = option.percent
                         showConfirm = true
                     }) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "arrow.down.circle.fill")
-                                .font(.title2)
-                                .foregroundColor(.orange)
+                        HStack(spacing: 13) {
+                            GLMIconTile(glyph: "🌅")
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(option.label)
-                                    .font(.headline)
-                                    .foregroundColor(.primary)
-                                Text(option.subtitle)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                Text(option.label).glmText(.rowTitle)
+                                Text(option.subtitle).glmText(.caption)
                             }
                             Spacer()
+                            Text("−\(option.percent)%").glmText(.rowValue, color: GLM.caution)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                        .background(Color(.secondarySystemBackground))
-                        .cornerRadius(10)
+                        .glmRow()
                     }
+                    .buttonStyle(.glmPress)
                 }
             }
-            .padding(16)
+            .padding(.horizontal, GLM.Space.gutterTight)
 
             Spacer()
 
-            Button(action: { isPresented = false }) {
-                Text("Cancel")
-                    .frame(maxWidth: .infinity)
-                    .padding(12)
-                    .foregroundColor(.primary)
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(10)
-                    .font(.headline)
-            }
-            .padding(16)
+            Button("Cancel") { isPresented = false }
+                .buttonStyle(.glmOutline)
+                .padding(.horizontal, GLM.Space.gutter)
+                .padding(.bottom, 16)
         }
+        .glmScreen()
+        .presentationBackground(GLM.appBg)
         .alert("Deload by \(selectedPercent ?? 10)%?", isPresented: $showConfirm) {
             Button("Confirm", role: .destructive) {
                 if let percent = selectedPercent {
@@ -662,7 +512,7 @@ struct DeloadOptionsView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("All training weights will be reduced by \(selectedPercent ?? 10)%. Failure counts will be reset. This cannot be undone.")
+            Text("Every training weight drops by \(selectedPercent ?? 10)% and failure counts reset. This cannot be undone.")
         }
     }
 }
@@ -674,122 +524,101 @@ struct EditWeightsDetailView: View {
     @Binding var editedWeights: [String: Double]
     @Binding var parentIsPresented: Bool
     @Environment(\.dismiss) var dismiss
-    
+
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 16) {
-                // Header with back button
-                HStack {
-                    Button(action: {
-                        parentIsPresented = false
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.left")
-                            Text("Back")
-                        }
-                        .foregroundColor(.blue)
-                    }
-                    Spacer()
-                    Text("Edit Weights")
-                        .font(.title2)
-                        .bold()
-                    Spacer()
-                }
-                .padding(16)
-                
-                if let exercises = workout?.exercises {
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            ForEach(exercises.indices, id: \.self) { index in
-                                let exercise = exercises[index]
-                                let isAdjustable = !exercise.isBodyweightExercise && !exercise.isTimedExercise
-                                let currentWeight = editedWeights[exercise.name] ?? exercise.baseWeight
+        VStack(spacing: 0) {
+            GLMScreenHeader("Edit weights", subtitle: workout?.name, onBack: { parentIsPresented = false })
 
-                                VStack(alignment: .leading, spacing: 12) {
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(exercise.name)
-                                                .font(.headline)
-                                                .bold()
-                                            Text("\(exercise.sets) × \(exercise.reps)")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                        }
-                                        Spacer()
-                                        VStack(alignment: .trailing, spacing: 4) {
-                                            Text(isAdjustable ? "\(String(format: "%.1f", currentWeight)) kg" : "Bodyweight")
-                                                .font(.headline)
-                                                .foregroundColor(.blue)
-                                        }
+            if let exercises = workout?.exercises {
+                ScrollView {
+                    VStack(spacing: GLM.Space.cardGap) {
+                        ForEach(exercises.indices, id: \.self) { index in
+                            let exercise = exercises[index]
+                            let isAdjustable = !exercise.isBodyweightExercise && !exercise.isTimedExercise
+                            let currentWeight = editedWeights[exercise.name] ?? exercise.baseWeight
+
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(exercise.name).glmText(.rowTitle)
+                                        Text("\(exercise.sets) × \(exercise.reps)").glmText(.readout)
                                     }
-
+                                    Spacer()
                                     if isAdjustable {
-                                        HStack(spacing: 12) {
-                                            Button(action: {
-                                                let newWeight = max(exercise.baseWeight, currentWeight - 2.5)
-                                                editedWeights[exercise.name] = newWeight
-                                            }) {
-                                                Image(systemName: "minus.circle.fill")
-                                                    .font(.title2)
-                                                    .foregroundColor(.blue)
-                                            }
-
-                                            Slider(
-                                                value: Binding(
-                                                    get: { currentWeight },
-                                                    set: { editedWeights[exercise.name] = $0 }
-                                                ),
-                                                in: exercise.baseWeight...150,
-                                                step: 2.5
-                                            )
-
-                                            Button(action: {
-                                                let newWeight = min(150.0, currentWeight + 2.5)
-                                                editedWeights[exercise.name] = newWeight
-                                            }) {
-                                                Image(systemName: "plus.circle.fill")
-                                                    .font(.title2)
-                                                    .foregroundColor(.blue)
-                                            }
+                                        HStack(alignment: .firstTextBaseline, spacing: 3) {
+                                            Text(String(format: "%.1f", currentWeight)).glmText(.statValue, color: GLM.cyan)
+                                            Text("kg").glmText(.unit)
                                         }
-
-                                        let plates = exercise.getPlatesForWeight(currentWeight)
-                                        if !plates.isEmpty {
-                                            let platesString = formatPlates(plates)
-                                            Text("Plates: \(platesString)")
-                                                .font(.caption2)
-                                                .foregroundColor(.secondary)
-                                        }
+                                    } else {
+                                        Text("Bodyweight").glmText(.rowValue, color: GLM.inkMuted)
                                     }
                                 }
-                                .padding(16)
-                                .background(Color(.secondarySystemBackground))
-                                .cornerRadius(10)
+
+                                if isAdjustable {
+                                    HStack(spacing: 12) {
+                                        Button(action: {
+                                            let newWeight = max(exercise.baseWeight, currentWeight - 2.5)
+                                            editedWeights[exercise.name] = newWeight
+                                        }) {
+                                            stepperGlyph("−")
+                                        }
+                                        .buttonStyle(.glmPress)
+
+                                        Slider(
+                                            value: Binding(
+                                                get: { currentWeight },
+                                                set: { editedWeights[exercise.name] = $0 }
+                                            ),
+                                            in: exercise.baseWeight...150,
+                                            step: 2.5
+                                        )
+                                        .tint(GLM.purple)
+
+                                        Button(action: {
+                                            let newWeight = min(150.0, currentWeight + 2.5)
+                                            editedWeights[exercise.name] = newWeight
+                                        }) {
+                                            stepperGlyph("+")
+                                        }
+                                        .buttonStyle(.glmPress)
+                                    }
+
+                                    let plates = exercise.getPlatesForWeight(currentWeight)
+                                    if !plates.isEmpty {
+                                        Text("Plates · \(formatPlates(plates))").glmText(.caption)
+                                    }
+                                }
                             }
+                            .glmCard()
                         }
-                        .padding(16)
                     }
+                    .padding(.horizontal, GLM.Space.gutter)
+                    .padding(.top, 16)
+                    .padding(.bottom, 16)
                 }
-                
+            } else {
                 Spacer()
-                
-                Button(action: {
-                    // Save the edited weights to HealthStore
-                    healthStore.setCustomExerciseWeights(editedWeights)
-                    parentIsPresented = false
-                }) {
-                    Text("Save Changes")
-                        .frame(maxWidth: .infinity)
-                        .padding(12)
-                        .foregroundColor(.white)
-                        .background(Color(red: 0.25, green: 0.50, blue: 0.82))
-                        .cornerRadius(10)
-                        .font(.headline)
-                }
-                .padding(16)
             }
-            .navigationBarTitleDisplayMode(.inline)
+
+            Button("Save changes") {
+                // Save the edited weights to HealthStore
+                healthStore.setCustomExerciseWeights(editedWeights)
+                parentIsPresented = false
+            }
+            .buttonStyle(.glmPrimary)
+            .padding(.horizontal, GLM.Space.gutter)
+            .padding(.bottom, 16)
         }
+        .glmScreen()
+        .presentationBackground(GLM.appBg)
+    }
+
+    private func stepperGlyph(_ glyph: String) -> some View {
+        Text(glyph)
+            .font(.system(size: 17, weight: .medium))
+            .foregroundColor(GLM.ink)
+            .frame(width: 32, height: 32)
+            .overlay { Circle().strokeBorder(GLM.border, lineWidth: 1) }
+            .contentShape(Circle())
     }
 }
-

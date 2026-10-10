@@ -7,200 +7,86 @@
 
 import SwiftUI
 
+extension ActivityType {
+    /// Emoji glyph for the activity tile — the product's icon system.
+    var glyph: String {
+        switch self {
+        case .run: return "🏃"
+        case .walk: return "🚶"
+        case .ride: return "🚴"
+        case .bench, .squat, .deadlift: return "🏋️"
+        }
+    }
+}
+
 struct ActivityTypeSelector: View {
     @ObservedObject var healthStore: HealthStore
     var onBack: () -> Void = {}
     var onRunLocationSelected: () -> Void = {}
     @GestureState private var swipeOffset: CGFloat = 0
-    
-    private var timeOfDayText: String {
-        let hour = Calendar.current.component(.hour, from: Date())
-        switch hour {
-        case 5..<12:
-            return "this morning"
-        case 12..<17:
-            return "this afternoon"
-        case 17..<21:
-            return "this evening"
-        default:
-            return "tonight"
-        }
-    }
-    
+
     var availableActivities: [ActivityType] {
         guard let workoutType = healthStore.selectedWorkoutType else {
             return []
         }
         return healthStore.getActivitiesForWorkoutType(workoutType)
     }
-    
+
+    private var typeName: String {
+        healthStore.selectedWorkoutType?.rawValue.lowercased() ?? "workout"
+    }
+
     var body: some View {
-        ZStack {
+        VStack(spacing: 0) {
+            GLMScreenHeader(healthStore.selectedWorkoutType?.rawValue ?? "", onBack: onBack)
+
             ScrollView {
-                VStack(spacing: 16) {
-                    // Header with back button
-                    HStack {
-                        Button(action: onBack) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "chevron.left")
-                                Text("Back")
-                            }
-                            .foregroundColor(.blue)
-                        }
-                        Spacer()
-                        Text(healthStore.selectedWorkoutType?.rawValue ?? "")
-                            .font(.headline)
-                            .bold()
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                    }
-                    .padding(16)
-                    
-                    // AI Activity suggestion (shown first)
+                VStack(spacing: GLM.Space.cardGap) {
                     if healthStore.isGeneratingAdvice || healthStore.suggestion != nil {
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Image(systemName: "lightbulb.fill")
-                                    .foregroundColor(.yellow)
-                                Text("Activity Suggestion")
-                                    .font(.headline)
-                                    .bold()
-                                Spacer()
-                                if healthStore.isGeneratingAdvice {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                }
-                            }
-                            
-                            if let suggestion = healthStore.suggestion {
-                                Text(suggestion)
-                                    .font(.body)
-                                    .lineLimit(nil)
-                                    .foregroundColor(.primary)
-                                    .animation(.easeInOut(duration: 0.15), value: suggestion)
-                            } else {
-                                HStack(spacing: 4) {
-                                    Text("Generating personalized advice")
-                                        .font(.body)
-                                        .foregroundColor(.secondary)
-                                    TypingIndicator()
-                                }
-                            }
-                        }
-                        .padding(16)
-                        .background(Color(.secondarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        suggestionCard
                     }
-                    
-                    // Activity selection prompt
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("What type of \(healthStore.selectedWorkoutType?.rawValue.lowercased() ?? "workout") would you like to do \(timeOfDayText)?")
-                            .font(.headline)
-                            .bold()
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("What type of \(typeName) would you like to do \(GLMFormat.timeOfDay)?")
+                            .glmText(.rowTitle)
                             .lineLimit(3)
                             .minimumScaleFactor(0.85)
-                        
-                        // Activity buttons
-                        VStack(spacing: 12) {
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        VStack(spacing: GLM.Space.listGap) {
                             ForEach(availableActivities) { activity in
                                 let isSelected = healthStore.selectedActivityType == activity
-                                Button(action: {
-                                    if activity == .run {
-                                        // Select run but clear location to prompt sub-selection
-                                        healthStore.setActivityPreference(activity)
-                                        healthStore.selectedRunLocation = nil
-                                    } else {
-                                        healthStore.selectedRunLocation = nil
-                                        healthStore.setActivityPreference(activity)
-                                    }
-                                }) {
-                                    HStack(spacing: 12) {
-                                        Image(systemName: activity.icon)
-                                            .font(.title2)
-                                            .foregroundColor(isSelected ? .white : .primary)
-                                            .frame(width: 30)
-                                        
-                                        Text(activity.rawValue)
-                                            .font(.headline)
-                                            .foregroundColor(isSelected ? .white : .primary)
-                                            .lineLimit(1)
-                                            .minimumScaleFactor(0.85)
-                                        
-                                        Spacer()
-                                        
-                                        if isSelected {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .foregroundColor(.white)
-                                        }
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .padding(12)
-                                    .background(
-                                        isSelected ?
-                                        Color.accentColor :
-                                        Color(.tertiarySystemBackground)
-                                    )
-                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                }
-                                
-                                // Run location sub-selection (Outdoor / Treadmill)
+                                activityRow(activity, isSelected: isSelected)
+
                                 if activity == .run && isSelected {
-                                    VStack(spacing: 8) {
+                                    HStack(spacing: 8) {
                                         ForEach(RunLocationType.allCases) { location in
-                                            let isLocationSelected = healthStore.selectedRunLocation == location
-                                            Button(action: {
+                                            GLMChip(
+                                                title: location.rawValue,
+                                                selected: healthStore.selectedRunLocation == location,
+                                                small: true
+                                            ) {
                                                 healthStore.setRunLocation(location)
                                                 onRunLocationSelected()
-                                            }) {
-                                                HStack(spacing: 12) {
-                                                    Image(systemName: location.icon)
-                                                        .font(.body)
-                                                        .foregroundColor(isLocationSelected ? .white : .primary)
-                                                        .frame(width: 24)
-                                                    
-                                                    Text(location.rawValue)
-                                                        .font(.subheadline)
-                                                        .fontWeight(.medium)
-                                                        .foregroundColor(isLocationSelected ? .white : .primary)
-                                                        .lineLimit(1)
-                                                    
-                                                    Spacer()
-                                                    
-                                                    if isLocationSelected {
-                                                        Image(systemName: "checkmark.circle.fill")
-                                                            .foregroundColor(.white)
-                                                    }
-                                                }
-                                                .frame(maxWidth: .infinity)
-                                                .padding(10)
-                                                .background(
-                                                    isLocationSelected ?
-                                                    Color.accentColor.opacity(0.8) :
-                                                    Color(.quaternarySystemFill)
-                                                )
-                                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                             }
                                         }
+                                        Spacer()
                                     }
-                                    .padding(.leading, 42)
+                                    .padding(.leading, 55)
                                     .transition(.opacity.combined(with: .move(edge: .top)))
                                 }
                             }
                         }
-                        .animation(.easeInOut(duration: 0.2), value: healthStore.selectedActivityType)
-                        .animation(.easeInOut(duration: 0.2), value: healthStore.selectedRunLocation)
+                        .animation(.easeInOut(duration: 0.15), value: healthStore.selectedActivityType)
+                        .animation(.easeInOut(duration: 0.15), value: healthStore.selectedRunLocation)
                     }
-                    .padding(16)
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    
-                    Spacer()
+                    .glmCard()
                 }
-                .padding(16)
+                .padding(.horizontal, GLM.Space.gutter)
+                .padding(.top, GLM.Space.cardGap)
+                .padding(.bottom, 32)
             }
         }
-        .background(Color(.systemGroupedBackground))
-        .navigationBarHidden(true)
         .offset(x: swipeOffset)
         .gesture(
             DragGesture()
@@ -216,10 +102,66 @@ struct ActivityTypeSelector: View {
                 }
         )
     }
+
+    private var suggestionCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            GLMSectionHeader("Suggestion") {
+                if healthStore.isGeneratingAdvice {
+                    ProgressView().controlSize(.small).tint(GLM.inkMuted)
+                }
+            }
+
+            if let suggestion = healthStore.suggestion {
+                Text(suggestion)
+                    .glmText(.body, color: GLM.inkBody)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .animation(.easeInOut(duration: 0.15), value: suggestion)
+            } else {
+                HStack(spacing: 6) {
+                    Text("Thinking about your week").glmText(.body)
+                    TypingIndicator()
+                }
+            }
+        }
+        .glmCard()
+    }
+
+    private func activityRow(_ activity: ActivityType, isSelected: Bool) -> some View {
+        Button(action: {
+            healthStore.selectedRunLocation = nil
+            healthStore.setActivityPreference(activity)
+        }) {
+            HStack(spacing: 13) {
+                GLMIconTile(glyph: activity.glyph, fill: isSelected ? GLM.surfaceRaised : GLM.surface)
+                Text(activity.rawValue).glmText(.rowTitle)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Spacer()
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(GLM.purple)
+                }
+            }
+            .glmRow(isSelected ? .outline : .inset)
+            .background(
+                RoundedRectangle(cornerRadius: GLM.Radius.cardSm, style: .continuous)
+                    .fill(isSelected ? GLM.appBg : Color.clear)
+            )
+            .overlay {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: GLM.Radius.cardSm, style: .continuous)
+                        .strokeBorder(GLM.purple, lineWidth: 1)
+                }
+            }
+        }
+        .buttonStyle(.glmPress)
+    }
 }
 
 #Preview {
-    NavigationView {
+    NavigationStack {
         ActivityTypeSelector(healthStore: HealthStore(), onBack: {})
     }
+    .glmScreen()
 }

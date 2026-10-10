@@ -2,10 +2,9 @@
 //  RunActiveView.swift
 //  FullFitness
 //
-//  The "Run In Progress" screen, built from the StuFit Run Active design:
-//  total time as the hero, current-km pace emphasised over overall pace,
-//  distance progress, live heart rate, an optional route preview, per-km
-//  splits, and floating lap / pause / stop controls.
+//  The "Run In Progress" screen: total time as the hero, current-km pace
+//  emphasised over overall pace, distance progress, live heart rate, an
+//  optional route preview, per-km splits, and floating pause / stop controls.
 //
 
 import SwiftUI
@@ -46,17 +45,11 @@ struct RunActiveView: View {
 
     @State private var showingStopConfirm = false
 
-    private var accent: Color { .accentColor }
-    private var cardBackground: Color { Color(.secondarySystemGroupedBackground) }
-
     var body: some View {
         ZStack(alignment: .bottom) {
-            Color(.systemGroupedBackground).ignoresSafeArea()
-
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     RunHeader(
-                        accent: accent,
                         title: manager.goalLabel,
                         gpsLabel: manager.gpsStrength.label,
                         showGPS: manager.outdoor,
@@ -70,19 +63,18 @@ struct RunActiveView: View {
                     heartRateCard
 
                     if manager.outdoor {
-                        RunMapPreview(accent: accent)
-                            .padding(.horizontal, 20)
-                            .padding(.top, 14)
+                        RunMapPreview()
+                            .padding(.horizontal, GLM.Space.gutter)
+                            .padding(.top, GLM.Space.cardGap)
                     }
 
                     if !manager.splits.isEmpty || manager.distanceKm > 0 {
                         RunSplitsCard(
                             splits: manager.splits,
-                            currentKm: manager.splits.count + 1,
-                            accent: accent
+                            currentKm: manager.splits.count + 1
                         )
-                        .padding(.horizontal, 20)
-                        .padding(.top, 14)
+                        .padding(.horizontal, GLM.Space.gutter)
+                        .padding(.top, GLM.Space.cardGap)
                     }
                 }
                 .padding(.bottom, 170)
@@ -90,6 +82,7 @@ struct RunActiveView: View {
 
             controls
         }
+        .glmScreen()
         .navigationBarHidden(true)
         .confirmationDialog("End this run?", isPresented: $showingStopConfirm, titleVisibility: .visible) {
             Button("End run", role: .destructive) {
@@ -107,30 +100,29 @@ struct RunActiveView: View {
 
     private var heroTime: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("TOTAL TIME")
-                .font(.system(size: 12, weight: .semibold))
-                .tracking(0.6)
-                .foregroundColor(.secondary)
+            Text("Total time").glmEyebrow()
 
             Text(RunFormat.time(manager.elapsed))
-                .font(.system(size: 82, weight: .bold))
+                .font(.system(size: 64, weight: .bold))
+                .tracking(-1.28)
                 .monospacedDigit()
-                .foregroundColor(.primary)
+                .foregroundColor(GLM.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-                .padding(.top, 2)
+                .padding(.top, 4)
 
             if let goalKm = manager.goalKm {
                 progressBar(goalKm: goalKm)
                     .padding(.top, 16)
             } else {
-                Text("\(String(format: "%.2f", manager.distanceKm)) km")
-                    .font(.system(size: 15, weight: .semibold))
-                    .monospacedDigit()
-                    .padding(.top, 12)
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Text(String(format: "%.2f", manager.distanceKm)).glmText(.rowValue)
+                    Text("km").glmText(.unit)
+                }
+                .padding(.top, 12)
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, GLM.Space.gutter)
         .padding(.top, 14)
     }
 
@@ -139,24 +131,15 @@ struct RunActiveView: View {
         let remaining = max(0, goalKm - manager.distanceKm)
         return VStack(spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
-                Text("\(String(format: "%.2f", manager.distanceKm)) km")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.primary)
-                Spacer()
-                Text("\(String(format: "%.2f", remaining)) km to go")
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
-            }
-            .monospacedDigit()
-
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color(.tertiarySystemFill))
-                    Capsule().fill(accent)
-                        .frame(width: geo.size.width * pct)
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Text(String(format: "%.2f", manager.distanceKm)).glmText(.rowValue)
+                    Text("km").glmText(.unit)
                 }
+                Spacer()
+                Text("\(String(format: "%.2f", remaining)) km to go").glmText(.readout)
             }
-            .frame(height: 6)
+
+            GLMMetricBar(fraction: pct, color: GLM.cyan, height: 6)
 
             HStack {
                 Text("0")
@@ -166,7 +149,7 @@ struct RunActiveView: View {
                 Text("\(RunFormat.km(goalKm)) km")
             }
             .font(.system(size: 11, weight: .medium))
-            .foregroundColor(Color(.tertiaryLabel))
+            .foregroundColor(GLM.inkFaint)
             .monospacedDigit()
         }
     }
@@ -177,48 +160,37 @@ struct RunActiveView: View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text("CURRENT KM PACE")
-                        .font(.system(size: 12, weight: .semibold))
-                        .tracking(0.5)
-                        .foregroundColor(.secondary)
+                    Text("Current km pace").glmEyebrow()
                     Spacer()
                     trendChip
                 }
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(manager.currentKmPaceSec.map(RunFormat.pace) ?? "--:--")
-                        .font(.system(size: 44, weight: .bold))
-                        .monospacedDigit()
-                        .foregroundColor(.primary)
-                    Text("/km")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.secondary)
+                        .glmText(.metricLarge)
+                    Text("/km").glmText(.unit)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(.horizontal, GLM.Space.cardPadX)
+            .padding(.vertical, 16)
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Divider().padding(.horizontal, 16)
+            GLMHairline().padding(.horizontal, GLM.Space.cardPadX)
 
             HStack {
-                Text("Overall pace")
-                    .font(.system(size: 15, weight: .medium))
+                Text("Overall pace").glmText(.cardTitle)
                 Spacer()
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
                     Text(manager.overallPaceSec.map(RunFormat.pace) ?? "--:--")
-                        .font(.system(size: 22, weight: .semibold))
-                        .monospacedDigit()
-                    Text("/km")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.secondary)
+                        .glmText(.statValue)
+                    Text("/km").glmText(.unit)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, GLM.Space.cardPadX)
+            .padding(.vertical, 14)
         }
-        .background(cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .padding(.horizontal, 20)
+        .background(GLM.surface)
+        .clipShape(RoundedRectangle(cornerRadius: GLM.Radius.card, style: .continuous))
+        .padding(.horizontal, GLM.Space.gutter)
         .padding(.top, 20)
     }
 
@@ -227,20 +199,14 @@ struct RunActiveView: View {
         if let current = manager.currentKmPaceSec, let overall = manager.overallPaceSec {
             let delta = current - overall
             if abs(delta) < 3 {
-                Text("on pace")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.secondary)
+                GLMTag(text: "On pace", color: GLM.inkMuted)
             } else {
                 let slower = delta > 0
-                HStack(spacing: 4) {
-                    Image(systemName: slower ? "arrowtriangle.up.fill" : "arrowtriangle.down.fill")
-                        .font(.system(size: 8))
-                    Text("\(slower ? "+" : "−")\(RunFormat.pace(abs(delta))) vs avg")
-                        .monospacedDigit()
-                }
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(slower ? Color(red: 1, green: 0.27, blue: 0.23)
-                                        : Color(red: 0.19, green: 0.69, blue: 0.31))
+                GLMTag(
+                    text: "\(slower ? "+" : "−")\(RunFormat.pace(abs(delta))) vs avg",
+                    color: slower ? GLM.atRisk : GLM.success,
+                    dot: true
+                )
             }
         }
     }
@@ -248,33 +214,19 @@ struct RunActiveView: View {
     // MARK: Heart-rate card
 
     private var heartRateCard: some View {
-        HStack {
-            HStack(spacing: 8) {
-                Image(systemName: "heart.fill")
-                    .foregroundColor(Color(red: 1, green: 0.27, blue: 0.23))
-                    .font(.system(size: 15))
-                Text("HEART RATE")
-                    .font(.system(size: 12, weight: .semibold))
-                    .tracking(0.5)
-                    .foregroundColor(.secondary)
-            }
+        HStack(spacing: 12) {
+            GLMIconTile(glyph: "❤️", size: 38)
+            Text("Heart rate").glmText(.cardTitle)
             Spacer()
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text(manager.heartRate.map { "\(Int($0.rounded()))" } ?? "--")
-                    .font(.system(size: 28, weight: .bold))
-                    .monospacedDigit()
-                    .foregroundColor(Color(red: 1, green: 0.27, blue: 0.23))
-                Text("bpm")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.secondary)
+                    .glmText(.metric, color: GLM.cyan)
+                Text("bpm").glmText(.unit)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .background(cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .padding(.horizontal, 20)
-        .padding(.top, 14)
+        .glmCard(padding: EdgeInsets(top: 14, leading: 18, bottom: 14, trailing: 20))
+        .padding(.horizontal, GLM.Space.gutter)
+        .padding(.top, GLM.Space.cardGap)
     }
 
     // MARK: Floating controls
@@ -286,14 +238,12 @@ struct RunActiveView: View {
             Button(action: { manager.togglePause() }) {
                 Image(systemName: manager.paused ? "play.fill" : "pause.fill")
                     .font(.system(size: 28, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(GLM.onAccent)
                     .frame(width: 84, height: 84)
-                    .background(manager.paused ? Color(red: 0.19, green: 0.69, blue: 0.31) : accent)
+                    .background(manager.paused ? GLM.green : GLM.purple)
                     .clipShape(Circle())
-                    .shadow(color: (manager.paused ? Color(red: 0.19, green: 0.69, blue: 0.31) : accent).opacity(0.33),
-                            radius: 11, x: 0, y: 8)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.glmPress)
 
             secondaryButton(systemName: "stop.fill") { showingStopConfirm = true }
         }
@@ -304,20 +254,19 @@ struct RunActiveView: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(.primary)
+                .foregroundColor(GLM.ink)
                 .frame(width: 56, height: 56)
-                .background(cardBackground)
+                .background(GLM.surface)
+                .overlay { Circle().strokeBorder(GLM.border, lineWidth: 1) }
                 .clipShape(Circle())
-                .shadow(color: .black.opacity(0.06), radius: 2, x: 0, y: 1)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.glmPress)
     }
 }
 
 // MARK: - Header
 
 private struct RunHeader: View {
-    let accent: Color
     let title: String
     let gpsLabel: String
     let showGPS: Bool
@@ -328,53 +277,32 @@ private struct RunHeader: View {
             HStack {
                 Button(action: onHide) {
                     HStack(spacing: 4) {
-                        Image(systemName: "arrow.left")
+                        Image(systemName: "chevron.left")
                             .font(.system(size: 14, weight: .semibold))
                         Text("Hide")
-                            .font(.system(size: 15, weight: .medium))
+                            .font(.system(size: 14, weight: .semibold))
                     }
-                    .foregroundColor(accent)
+                    .foregroundColor(GLM.purple)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.glmPress)
 
                 Spacer()
 
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(accent)
-                        .frame(width: 6, height: 6)
-                    Text("LIVE")
-                        .font(.system(size: 12, weight: .semibold))
-                        .tracking(0.2)
-                }
-                .foregroundColor(accent)
-                .padding(.vertical, 4)
-                .padding(.horizontal, 10)
-                .background(accent.opacity(0.1))
-                .clipShape(Capsule())
+                GLMTag(text: "Live", color: GLM.purple, dot: true)
 
                 Spacer()
 
-                if showGPS {
-                    HStack(spacing: 5) {
-                        gpsDots
-                        Text(gpsLabel)
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .foregroundColor(.secondary)
-                } else {
-                    Text(gpsLabel)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.secondary)
+                HStack(spacing: 5) {
+                    if showGPS { gpsDots }
+                    Text(gpsLabel).glmText(.label)
                 }
             }
             .frame(minHeight: 32)
 
-            Text(title)
-                .font(.system(size: 22, weight: .semibold))
-                .padding(.top, 6)
+            Text(title).glmText(.screenTitle)
+                .padding(.top, 8)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, GLM.Space.gutter)
         .padding(.top, 8)
     }
 
@@ -382,7 +310,7 @@ private struct RunHeader: View {
         HStack(alignment: .bottom, spacing: 2) {
             ForEach(0..<3) { i in
                 Capsule()
-                    .fill(accent.opacity(0.5 + Double(i) * 0.25))
+                    .fill(GLM.purple.opacity(0.5 + Double(i) * 0.25))
                     .frame(width: 3, height: CGFloat(6 + i * 3))
             }
         }
@@ -394,7 +322,6 @@ private struct RunHeader: View {
 private struct RunSplitsCard: View {
     let splits: [RunSessionManager.Split]
     let currentKm: Int
-    let accent: Color
 
     var body: some View {
         let fastest = splits.map(\.seconds).min() ?? 0
@@ -403,14 +330,9 @@ private struct RunSplitsCard: View {
 
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("SPLITS")
-                    .font(.system(size: 12, weight: .semibold))
-                    .tracking(0.5)
-                    .foregroundColor(.secondary)
+                Text("Splits").glmEyebrow()
                 Spacer()
-                Text("auto every km")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(Color(.tertiaryLabel))
+                Text("auto every km").glmText(.caption, color: GLM.inkFaint)
             }
 
             VStack(spacing: 8) {
@@ -419,25 +341,13 @@ private struct RunSplitsCard: View {
                     let fraction = 0.25 + (Double(slowest - split.seconds) / Double(range)) * 0.6
                     HStack(spacing: 10) {
                         Text("\(split.km)")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.secondary)
+                            .glmText(.readout)
                             .frame(width: 28, alignment: .leading)
-                            .monospacedDigit()
 
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule().fill(Color(.tertiarySystemFill))
-                                Capsule()
-                                    .fill(isFastest ? accent : Color(.label).opacity(0.45))
-                                    .frame(width: geo.size.width * fraction)
-                            }
-                        }
-                        .frame(height: 6)
+                        GLMMetricBar(fraction: fraction, color: isFastest ? GLM.purple : GLM.inkMuted, height: 6)
 
                         Text(RunFormat.pace(split.seconds))
-                            .font(.system(size: 14, weight: .semibold))
-                            .monospacedDigit()
-                            .foregroundColor(isFastest ? accent : .primary)
+                            .glmText(.rowValue, color: isFastest ? GLM.purple : GLM.ink)
                             .frame(width: 56, alignment: .trailing)
                     }
                 }
@@ -445,42 +355,25 @@ private struct RunSplitsCard: View {
                 // Current km, in progress
                 HStack(spacing: 10) {
                     Text("\(currentKm)")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(accent)
+                        .glmText(.readout, color: GLM.purple)
                         .frame(width: 28, alignment: .leading)
-                        .monospacedDigit()
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color(.tertiarySystemFill))
-                            Capsule().fill(accent.opacity(0.35))
-                                .frame(width: geo.size.width * 0.35)
-                        }
-                    }
-                    .frame(height: 6)
+                    GLMMetricBar(fraction: 0.35, color: GLM.purple.opacity(0.35), height: 6)
                     Text("· · ·")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.secondary)
+                        .glmText(.readout)
                         .frame(width: 56, alignment: .trailing)
                 }
-                .opacity(0.7)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .glmCard(padding: EdgeInsets(top: 16, leading: 18, bottom: 16, trailing: 18))
     }
 }
 
 // MARK: - Map preview placeholder
 
 private struct RunMapPreview: View {
-    let accent: Color
-
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            Color(red: 0.90, green: 0.91, blue: 0.93)
+            GLM.surface
             GeometryReader { geo in
                 Path { path in
                     let w = geo.size.width, h = geo.size.height
@@ -492,21 +385,12 @@ private struct RunMapPreview: View {
                                   control1: CGPoint(x: 0.75 * w, y: 0.30 * h),
                                   control2: CGPoint(x: 0.85 * w, y: 0.40 * h))
                 }
-                .stroke(accent, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+                .stroke(GLM.cyan, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
             }
-            HStack(spacing: 4) {
-                Circle().fill(accent).frame(width: 8, height: 8)
-                Text("Live route")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.primary)
-            }
-            .padding(.vertical, 4)
-            .padding(.horizontal, 8)
-            .background(Color(.systemBackground).opacity(0.92))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .padding(8)
+            GLMTag(text: "Live route", color: GLM.ink, dot: false)
+                .padding(8)
         }
         .frame(height: 96)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: GLM.Radius.card, style: .continuous))
     }
 }

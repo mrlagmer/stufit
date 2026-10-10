@@ -10,86 +10,50 @@ import SwiftUI
 struct WorkoutTypeSelector: View {
     @ObservedObject var healthStore: HealthStore
     var onActivitySelected: () -> Void = {}
-    
-    private var timeOfDayText: String {
-        let hour = Calendar.current.component(.hour, from: Date())
-        switch hour {
-        case 5..<12:
-            return "this morning"
-        case 12..<17:
-            return "this afternoon"
-        case 17..<21:
-            return "this evening"
-        default:
-            return "tonight"
-        }
-    }
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("What do you feel like doing \(timeOfDayText)?")
-                .font(.headline)
-                .bold()
+        VStack(alignment: .leading, spacing: 14) {
+            Text("What do you feel like doing \(GLMFormat.timeOfDay)?")
+                .glmText(.rowTitle)
                 .lineLimit(2)
                 .minimumScaleFactor(0.85)
-            
-            VStack(spacing: 12) {
-                // Cardio Button
-                Button(action: {
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(spacing: GLM.Space.listGap) {
+                optionRow(glyph: "🏃", title: "Cardio", subtitle: "Run, walk or ride") {
                     healthStore.setWorkoutPreference(.cardio)
                     onActivitySelected()
-                }) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "heart.fill")
-                            .font(.title2)
-                            .foregroundColor(.white)
-                        
-                        Text("Cardio")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                        
-                        Spacer()
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(12)
-                    .background(Color.accentColor)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
-                
-                // Weights Button
-                Button(action: {
+                optionRow(glyph: "🏋️", title: "Weights", subtitle: "Your program's next session") {
                     healthStore.setWorkoutPreference(.weights)
                     onActivitySelected()
-                }) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "dumbbell.fill")
-                            .font(.title2)
-                            .foregroundColor(.primary)
-                        
-                        Text("Weights")
-                            .font(.headline)
-                            .foregroundColor(.primary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                        
-                        Spacer()
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(12)
-                    .background(Color(.tertiarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
             }
         }
-        .padding(16)
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .glmCard()
+    }
+
+    private func optionRow(glyph: String, title: String, subtitle: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 13) {
+                GLMIconTile(glyph: glyph, fill: GLM.surface)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).glmText(.rowTitle)
+                    Text(subtitle).glmText(.caption)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(GLM.inkMuted)
+            }
+            .glmRow(.inset)
+        }
+        .buttonStyle(.glmPress)
     }
 }
 
 #Preview {
     WorkoutTypeSelector(healthStore: HealthStore())
         .padding()
+        .glmScreen()
 }

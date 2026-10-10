@@ -3,9 +3,8 @@
 //  FullFitness
 //
 //  Created by Copilot on 31/3/2026.
-//  Redesigned 20/5/2026 from the "StuFit — New Run" design (Variant A, refined):
-//  Distance / Time / Open segmented control, a single grouped card of preset
-//  goals with an inline custom stepper, a pace estimate, and a dynamic CTA.
+//  Distance / Time / Open chips, a single grouped card of preset goals with
+//  an inline custom stepper, a pace estimate, and a dynamic CTA.
 //
 
 import SwiftUI
@@ -36,41 +35,47 @@ struct RunConfigurationView: View {
         3: "14:48", 5: "26:14", 10: "58:31", 21.1: "2:08:42",
     ]
 
-    private var accent: Color { .accentColor }
-    private var cardBackground: Color { Color(.secondarySystemGroupedBackground) }
-
     // MARK: - Body
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                header
-
-                Picker("Goal Type", selection: $healthStore.runGoal.type) {
-                    ForEach(RunGoalType.allCases) { type in
-                        Text(type.rawValue).tag(type)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.top, 8)
-
-                Group {
-                    switch healthStore.runGoal.type {
-                    case .distance: distanceSection
-                    case .time:     timeSection
-                    case .open:     openSection
-                    }
-                }
-                .padding(.top, 18)
-
-                startButton
-                    .padding(.top, 22)
+        VStack(spacing: 0) {
+            GLMScreenHeader("New run", subtitle: "Cardio", onBack: onBack) {
+                locationChip
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 36)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Pick a target and we'll cue you through it. Or just head out.")
+                        .glmText(.body)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 14)
+
+                    HStack(spacing: 8) {
+                        ForEach(RunGoalType.allCases) { type in
+                            GLMChip(title: type.rawValue, selected: healthStore.runGoal.type == type) {
+                                healthStore.runGoal.type = type
+                            }
+                        }
+                        Spacer()
+                    }
+                    .padding(.top, 16)
+
+                    Group {
+                        switch healthStore.runGoal.type {
+                        case .distance: distanceSection
+                        case .time:     timeSection
+                        case .open:     openSection
+                        }
+                    }
+                    .padding(.top, 20)
+
+                    startButton
+                        .padding(.top, 22)
+                }
+                .padding(.horizontal, GLM.Space.gutter)
+                .padding(.bottom, 36)
+            }
         }
-        .background(Color(.systemGroupedBackground))
-        .navigationBarHidden(true)
         .offset(x: swipeOffset)
         .gesture(
             DragGesture()
@@ -85,53 +90,26 @@ struct RunConfigurationView: View {
                     }
                 }
         )
-        .animation(.easeInOut(duration: 0.2), value: healthStore.runGoal.type)
+        .animation(.easeInOut(duration: 0.15), value: healthStore.runGoal.type)
     }
 
     // MARK: - Header
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Button(action: onBack) {
-                    HStack(spacing: 2) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 17, weight: .semibold))
-                        Text("Cardio")
-                            .font(.system(size: 17))
-                    }
-                    .foregroundColor(accent)
-                }
-
-                Spacer()
-
-                Button(action: toggleLocation) {
-                    HStack(spacing: 6) {
-                        Image(systemName: location.icon)
-                            .font(.system(size: 13, weight: .semibold))
-                        Text(location.rawValue)
-                            .font(.system(size: 14, weight: .semibold))
-                    }
-                    .foregroundColor(accent)
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 11)
-                    .background(accent.opacity(0.1))
-                    .clipShape(Capsule())
-                }
+    private var locationChip: some View {
+        Button(action: toggleLocation) {
+            HStack(spacing: 6) {
+                Text(location == .outdoor ? "🌤️" : "🏠")
+                    .font(.system(size: 12))
+                Text(location.rawValue)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(GLM.ink)
             }
-            .frame(minHeight: 32)
-            .padding(.top, 8)
-
-            Text("New run")
-                .font(.system(size: 34, weight: .bold))
-                .padding(.top, 6)
-
-            Text("Pick a target and we'll cue you through it. Or just head out.")
-                .font(.system(size: 15))
-                .foregroundColor(.secondary)
-                .padding(.top, 2)
-                .padding(.bottom, 14)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 14)
+            .overlay { Capsule().strokeBorder(GLM.border, lineWidth: 1) }
+            .clipShape(Capsule())
         }
+        .buttonStyle(.glmPress)
     }
 
     private var location: RunLocationType {
@@ -237,61 +215,41 @@ struct RunConfigurationView: View {
     // MARK: - Open section
 
     private var openSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: GLM.Space.cardGap) {
             VStack(alignment: .leading, spacing: 0) {
-                ZStack {
-                    Circle().fill(accent.opacity(0.1))
-                    Image(systemName: "figure.run")
-                        .font(.system(size: 22, weight: .medium))
-                        .foregroundColor(accent)
-                }
-                .frame(width: 44, height: 44)
-                .padding(.bottom, 14)
+                GLMIconTile(glyph: "🏃", size: 44)
+                    .padding(.bottom, 14)
 
                 Text("Run without a goal")
-                    .font(.system(size: 20, weight: .semibold))
-                    .padding(.bottom, 6)
+                    .glmText(.rowTitle)
+                    .padding(.bottom, 4)
 
-                Text("Just head out — we'll track distance, time and pace. No cues or targets, but you'll still see your splits.")
-                    .font(.system(size: 15))
-                    .foregroundColor(.secondary)
+                Text("Just head out. Distance, time and pace are tracked, and you'll still hear your splits. No cues or targets.")
+                    .glmText(.body)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .glmCard(.featured)
 
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "info.circle")
-                    .font(.system(size: 16))
-                    .foregroundColor(.secondary)
-                Text("Tip — you can finish whenever you tap End. We'll log it the same way as a goal run.")
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.tertiarySystemFill))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            Text("Finish whenever you tap End. It's logged the same way as a goal run.")
+                .glmText(.caption)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 6)
         }
     }
 
     // MARK: - Reusable pieces
 
     private func sectionLabel(_ text: String) -> some View {
-        Text(text.uppercased())
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundColor(.secondary)
-            .padding(.horizontal, 4)
+        Text(text)
+            .glmEyebrow()
+            .padding(.horizontal, 6)
             .padding(.bottom, 8)
     }
 
     private func groupedCard<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         VStack(spacing: 0) { content() }
-            .background(cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(GLM.surface)
+            .clipShape(RoundedRectangle(cornerRadius: GLM.Radius.card, style: .continuous))
     }
 
     private func goalRow(
@@ -307,42 +265,33 @@ struct RunConfigurationView: View {
             HStack(spacing: 12) {
                 radioDot(isActive: isActive)
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.system(size: 17, weight: isActive ? .semibold : .medium))
-                        .foregroundColor(.primary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).glmText(.rowTitle)
 
                     HStack(spacing: 6) {
                         Text(estimate)
                         if let pb = personalBest {
-                            Text("·").opacity(0.4)
+                            Text("·")
                             Text("PB \(pb)")
                         }
                     }
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
-                    .monospacedDigit()
+                    .glmText(.readout)
                 }
 
                 Spacer(minLength: 8)
 
-                Text(detail)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .monospacedDigit()
+                Text(detail).glmText(.rowValue, color: isActive ? GLM.cyan : GLM.inkMuted)
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 18)
             .padding(.vertical, 14)
             .contentShape(Rectangle())
             .overlay(alignment: .bottom) {
                 if showSeparator {
-                    Rectangle()
-                        .fill(Color(.separator).opacity(0.6))
-                        .frame(height: 0.5)
+                    GLMHairline().padding(.horizontal, 18)
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.glmPress)
     }
 
     private func stepperRow(
@@ -356,49 +305,46 @@ struct RunConfigurationView: View {
             Button(action: onSelect) {
                 HStack(spacing: 12) {
                     radioDot(isActive: isActive)
-                    Text("Custom")
-                        .font(.system(size: 17, weight: isActive ? .semibold : .medium))
-                        .foregroundColor(.primary)
+                    Text("Custom").glmText(.rowTitle)
                     Spacer(minLength: 0)
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.glmPress)
 
-            Button(action: onDecrement) { stepperGlyph("minus") }
-                .buttonStyle(.plain)
+            Button(action: onDecrement) { stepperGlyph("−") }
+                .buttonStyle(.glmPress)
 
             Text(valueText)
-                .font(.system(size: 17, weight: .semibold))
-                .monospacedDigit()
+                .glmText(.rowValue, color: isActive ? GLM.cyan : GLM.ink)
                 .frame(minWidth: 60)
 
-            Button(action: onIncrement) { stepperGlyph("plus") }
-                .buttonStyle(.plain)
+            Button(action: onIncrement) { stepperGlyph("+") }
+                .buttonStyle(.glmPress)
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 18)
         .padding(.vertical, 12)
     }
 
-    private func stepperGlyph(_ systemName: String) -> some View {
-        Image(systemName: systemName)
-            .font(.system(size: 16, weight: .medium))
-            .foregroundColor(.primary)
-            .frame(width: 30, height: 30)
-            .background(Color(.tertiarySystemFill))
-            .clipShape(Circle())
+    private func stepperGlyph(_ glyph: String) -> some View {
+        Text(glyph)
+            .font(.system(size: 17, weight: .medium))
+            .foregroundColor(GLM.ink)
+            .frame(width: 32, height: 32)
+            .overlay { Circle().strokeBorder(GLM.border, lineWidth: 1) }
+            .contentShape(Circle())
     }
 
     private func radioDot(isActive: Bool) -> some View {
         ZStack {
             Circle()
-                .fill(isActive ? accent : Color.clear)
+                .fill(isActive ? GLM.purple : Color.clear)
             Circle()
-                .strokeBorder(isActive ? accent : Color(.tertiaryLabel), lineWidth: 2)
+                .strokeBorder(isActive ? GLM.purple : GLM.border, lineWidth: 1.5)
             if isActive {
                 Image(systemName: "checkmark")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(GLM.onAccent)
             }
         }
         .frame(width: 22, height: 22)
@@ -406,47 +352,23 @@ struct RunConfigurationView: View {
 
     private func estimateCard(label: String, value: String) -> some View {
         HStack(spacing: 12) {
-            ZStack {
-                Circle().fill(accent.opacity(0.1))
-                Image(systemName: "stopwatch")
-                    .font(.system(size: 16, weight: .regular))
-                    .foregroundColor(accent)
-            }
-            .frame(width: 36, height: 36)
+            GLMIconTile(glyph: "⏱️", size: 38)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(label)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.secondary)
-                Text(value)
-                    .font(.system(size: 16, weight: .semibold))
-                    .monospacedDigit()
+                Text(label).glmText(.caption)
+                Text(value).glmText(.rowValue)
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .padding(.top, 14)
+        .glmRow(padding: EdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 14))
+        .padding(.top, GLM.Space.cardGap)
     }
 
     private var startButton: some View {
         Button(action: onStart) {
-            HStack(spacing: 8) {
-                Image(systemName: "figure.run")
-                    .font(.system(size: 16, weight: .semibold))
-                Text(ctaLabel)
-                    .font(.system(size: 17, weight: .semibold))
-            }
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .frame(height: 54)
-            .background(accent)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .shadow(color: accent.opacity(0.32), radius: 7, x: 0, y: 4)
+            Text(ctaLabel)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.glmPrimary)
     }
 
     private var ctaLabel: String {
@@ -482,5 +404,5 @@ struct RunConfigurationView: View {
 #Preview {
     let store = HealthStore()
     store.selectedRunLocation = .outdoor
-    return RunConfigurationView(healthStore: store)
+    return RunConfigurationView(healthStore: store).glmScreen()
 }

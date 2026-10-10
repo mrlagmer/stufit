@@ -13,6 +13,7 @@ struct Workout: Identifiable {
     let title: String
     let details: String
     let type: WorkoutType
+    let glyph: String
 }
 
 struct HomeView: View {
@@ -27,15 +28,19 @@ struct HomeView: View {
     @State private var showingRunActive = false
 
     private let todaysWorkouts: [Workout] = [
-        Workout(time: "07:00", title: "Morning Cardio", details: "10 min warmup • 20 min run", type: .cardio),
-        Workout(time: "12:30", title: "Lunchtime Strength", details: "3 sets compound lifts • core", type: .weights),
-        Workout(time: "18:00", title: "Evening Mobility", details: "Stretching and foam rolling", type: .cardio)
+        Workout(time: "07:00", title: "Morning cardio", details: "10 min warmup · 20 min run", type: .cardio, glyph: "🏃"),
+        Workout(time: "12:30", title: "Lunchtime strength", details: "3 sets compound lifts · core", type: .weights, glyph: "🏋️"),
+        Workout(time: "18:00", title: "Evening mobility", details: "Stretching and foam rolling", type: .cardio, glyph: "🧘")
     ]
-    
+
     var nextWeightsWorkout: ProgramWorkout? {
         return healthStore.getNextWorkout()
     }
-    
+
+    private var isOnHome: Bool {
+        !showingActivitySelector && !showingWeightsCoach && !showingChangeProgram && !showingRunConfig
+    }
+
     private func dismissActivitySelector() {
         showingActivitySelector = false
         showingRunConfig = false
@@ -46,7 +51,7 @@ struct HomeView: View {
         showingRunConfig = false
         showingActivitySelector = true
     }
-    
+
     private func startRun() {
         let outdoor = (healthStore.selectedRunLocation ?? .outdoor) == .outdoor
         runManager = RunSessionManager(goal: healthStore.runGoal, outdoor: outdoor, healthStore: healthStore)
@@ -65,7 +70,7 @@ struct HomeView: View {
         showingWeightsCoach = false
         healthStore.resetWorkoutPreference()
     }
-    
+
     private func dismissChangeProgram() {
         showingWeightsCoach = false
         showingChangeProgram = false
@@ -73,326 +78,10 @@ struct HomeView: View {
     }
 
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 16) {
-                    // Onboarding / Health permissions
-                    if !healthStore.authorized {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Welcome back!")
-                                .font(.title)
-                                .fontWeight(.semibold)
-                            Text("Allow access to Health data so we can personalise your plan and track progress.")
-                                .foregroundColor(.secondary)
-
-                            Button(action: { healthStore.requestAuthorization() }) {
-                                Text("Connect Health")
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .padding(.top, 6)
-                        }
-                        .padding(16)
-                        .background(Color(.secondarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    }
-
-                    // Workout type selector (after authorization)
-                    if healthStore.authorized && healthStore.selectedWorkoutType == nil && !showingActivitySelector && !showingWeightsCoach {
-                        WorkoutTypeSelector(healthStore: healthStore, onActivitySelected: {
-                            // Check if weights selected
-                            if healthStore.selectedWorkoutType == .weights {
-                                showingWeightsCoach = true
-                            } else {
-                                showingActivitySelector = true
-                            }
-                        })
-                    }
-                    
-                    // Weights Coach (if selected weights)
-                    if healthStore.authorized && healthStore.selectedWorkoutType == .weights && showingWeightsCoach {
-                        WeightsCoachView(healthStore: healthStore, onBack: dismissWeightsCoach)
-                    }
-                    
-                    // Inactivity / deload banner
-                    if healthStore.authorized && healthStore.shouldShowDeloadBanner && !showingActivitySelector && !showingWeightsCoach && !showingChangeProgram && !showingRunConfig {
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "figure.cooldown")
-                                    .foregroundColor(.orange)
-                                Text("Welcome Back!")
-                                    .font(.headline)
-                                    .bold()
-                                Spacer()
-                            }
-                            Text("You haven't trained in over a week. Consider deloading your weights to ease back in safely and avoid injury.")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                            Button(action: { showingDeloadFromBanner = true }) {
-                                Text("Deload Weights")
-                                    .frame(maxWidth: .infinity)
-                                    .padding(10)
-                                    .foregroundColor(.white)
-                                    .background(Color.orange)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                    .font(.headline)
-                            }
-                        }
-                        .padding(16)
-                        .background(Color(.secondarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    }
-
-                    // Active Weights Plan - show on home page
-                    if healthStore.authorized && healthStore.activeWeightProgram?.isActive == true && !showingActivitySelector && !showingWeightsCoach && !showingRunConfig {
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Active Weights Plan")
-                                        .font(.title3)
-                                        .fontWeight(.semibold)
-                                    Text("\(healthStore.activeWeightProgram?.daysPerWeek ?? 0) Days Per Week")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                }
-                                Spacer()
-                                Button(action: {
-                                    healthStore.selectedWorkoutType = .weights
-                                    showingActivitySelector = false
-                                    showingWeightsCoach = false
-                                    showingChangeProgram = true
-                                }) {
-                                    Image(systemName: "pencil")
-                                        .foregroundColor(.blue)
-                                        .font(.headline)
-                                }
-                            }
-                            .padding(16)
-                            .background(Color(.secondarySystemBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        }
-                    }
-                    
-                    // Streaks and personal records
-                    if healthStore.authorized && healthStore.activeWeightProgram?.isActive == true && !showingActivitySelector && !showingWeightsCoach && !showingChangeProgram && !showingRunConfig {
-                        ProgressSummaryCard(healthStore: healthStore)
-                    }
-
-                    // Change Weights Program
-                    if healthStore.authorized && healthStore.selectedWorkoutType == .weights && showingChangeProgram {
-                        WeightsCoachView(healthStore: healthStore, onBack: dismissChangeProgram)
-                    }
-                    
-                    // Activity type selector (after workout type selected)
-                    if healthStore.authorized && healthStore.selectedWorkoutType != nil && showingActivitySelector && !showingRunConfig {
-                        ActivityTypeSelector(healthStore: healthStore, onBack: dismissActivitySelector, onRunLocationSelected: {
-                            showingActivitySelector = false
-                            showingRunConfig = true
-                        })
-                    }
-
-                    // Run configuration (after outdoor/treadmill selected)
-                    if healthStore.authorized && showingRunConfig {
-                        RunConfigurationView(healthStore: healthStore, onBack: dismissRunConfig, onStart: startRun)
-                    }
-
-                    // Resume banner for a run that's been hidden but is still tracking
-                    if let runManager, runManager.isActive, !showingRunActive {
-                        Button(action: { showingRunActive = true }) {
-                            HStack(spacing: 10) {
-                                Image(systemName: "figure.run")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Run in progress")
-                                        .font(.headline)
-                                        .foregroundColor(.white)
-                                    Text(RunFormat.time(runManager.elapsed))
-                                        .font(.subheadline)
-                                        .monospacedDigit()
-                                        .foregroundColor(.white.opacity(0.9))
-                                }
-                                Spacer()
-                                Text("Resume")
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundColor(.white)
-                            }
-                            .padding(16)
-                            .background(Color.accentColor)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    // Activity suggestion - removed, now shown in ActivityTypeSelector
-                    if false {
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack {
-                                Image(systemName: "lightbulb.fill")
-                                    .foregroundColor(.yellow)
-                                Text("Activity Suggestion")
-                                    .font(.headline)
-                                    .bold()
-                                Spacer()
-                                if healthStore.isGeneratingAdvice {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                }
-                            }
-                            
-                            if let suggestion = healthStore.suggestion {
-                                Text(suggestion)
-                                    .font(.body)
-                                    .lineLimit(nil)
-                                    .foregroundColor(.primary)
-                                    .animation(.easeInOut(duration: 0.15), value: suggestion)
-                            } else {
-                                HStack(spacing: 4) {
-                                    Text("Generating personalized advice")
-                                        .font(.body)
-                                        .foregroundColor(.secondary)
-                                    TypingIndicator()
-                                }
-                            }
-                        }
-                        .padding()
-                        .background(.regularMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-
-                    // Workout plan - only show on homepage, not while selecting activity
-                    if !showingActivitySelector && !showingWeightsCoach && !showingChangeProgram && !showingRunConfig {
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text("Today's Plan")
-                                    .font(.title3)
-                                    .fontWeight(.semibold)
-                                Spacer()
-                                NavigationLink(destination: WorkoutHistoryView(healthStore: healthStore)) {
-                                    Label("History", systemImage: "clock.arrow.circlepath")
-                                        .font(.subheadline)
-                                }
-                                if healthStore.selectedWorkoutType != nil {
-                                    Button(action: {
-                                        healthStore.resetWorkoutPreference()
-                                    }) {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundColor(.secondary)
-                                            .font(.headline)
-                                    }
-                                }
-                            }
-
-                            // Show next weights workout if there's an active program
-                            if let nextWorkout = nextWeightsWorkout, healthStore.activeWeightProgram?.isActive == true {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(nextWorkout.name)
-                                                .font(.headline)
-                                                .lineLimit(1)
-                                                .minimumScaleFactor(0.85)
-                                            Text("Next in rotation")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                        }
-                                        Spacer()
-                                    }
-                                    
-                                    // Show exercises for this workout
-                                    VStack(alignment: .leading, spacing: 12) {
-                                        ForEach(nextWorkout.exercises.indices, id: \.self) { index in
-                                            let exercise = nextWorkout.exercises[index]
-                                            let setWeight = healthStore.getNextWorkWeight(for: exercise)
-                                            let warmups = exercise.generateWarmupSets(setWeight)
-                                            let plates = exercise.getPlatesForWeight(setWeight)
-                                            let platesString = formatPlates(plates)
-                                            
-                                            HStack(spacing: 12) {
-                                                VStack(alignment: .leading, spacing: 2) {
-                                                    Text(exercise.name)
-                                                        .font(.body)
-                                                        .bold()
-                                                        .lineLimit(1)
-                                                        .minimumScaleFactor(0.8)
-                                                    HStack(spacing: 12) {
-                                                        if !warmups.isEmpty {
-                                                            Text("\(warmups.count)w + \(exercise.sets) × \(exercise.reps)")
-                                                                .font(.caption)
-                                                                .foregroundColor(.secondary)
-                                                        } else {
-                                                            Text("\(exercise.sets) × \(exercise.reps)")
-                                                                .font(.caption)
-                                                                .foregroundColor(.secondary)
-                                                        }
-                                                        Text(setWeight > 0 ? "@ \(String(format: "%.1f", setWeight)) kg" : "Bodyweight")
-                                                            .font(.caption)
-                                                            .foregroundColor(.blue)
-                                                            .lineLimit(1)
-                                                    }
-                                                    if !plates.isEmpty {
-                                                        Text(platesString)
-                                                            .font(.caption2)
-                                                            .foregroundColor(.secondary)
-                                                            .lineLimit(1)
-                                                            .minimumScaleFactor(0.75)
-                                                    }
-                                                }
-                                                Spacer()
-                                            }
-                                            .padding(12)
-                                            .background(Color(.tertiarySystemBackground))
-                                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                        }
-                                    }
-                                    
-                                    // Complete button
-                                    NavigationLink(destination: WorkoutSessionView(healthStore: healthStore, workout: nextWorkout, onBack: {
-                                        showingWorkoutSession = false
-                                    })) {
-                                        Text("Start Workout")
-                                            .frame(maxWidth: .infinity)
-                                            .padding(12)
-                                            .foregroundColor(.white)
-                                            .background(Color.accentColor)
-                                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                            .font(.headline.weight(.semibold))
-                                    }
-                                }
-                                    .padding(16)
-                                    .background(Color(.secondarySystemBackground))
-                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            } else {
-                                // Show default static workouts
-                                ForEach(todaysWorkouts) { workout in
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(workout.time)
-                                                .font(.headline)
-                                            Text(workout.title)
-                                                .font(.subheadline)
-                                            Text(workout.details)
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                        }
-                                        Spacer()
-                                        Image(systemName: "chevron.right")
-                                            .foregroundColor(.secondary)
-                                    }
-                                    .padding(12)
-                                    .background(Color(.tertiarySystemBackground))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                }
-                            }
-                        }
-                        .padding(.top, 16)
-                    }
-                    Spacer()
-                }
-                .padding(16)
-            }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("Home")
+        NavigationStack {
+            screenContent
+                .glmScreen()
+                .toolbar(.hidden, for: .navigationBar)
         }
         .sheet(isPresented: $showingDeloadFromBanner) {
             DeloadOptionsView(isPresented: $showingDeloadFromBanner, healthStore: healthStore)
@@ -407,17 +96,294 @@ struct HomeView: View {
             }
         }
     }
+
+    private var showsWeightsCoach: Bool {
+        healthStore.authorized && healthStore.selectedWorkoutType == .weights && (showingWeightsCoach || showingChangeProgram)
+    }
+
+    private var showsActivitySelector: Bool {
+        healthStore.authorized && healthStore.selectedWorkoutType != nil && showingActivitySelector
+    }
+
+    @ViewBuilder
+    private var screenContent: some View {
+        if showsWeightsCoach {
+            // Weights coach owns the whole screen (it has its own header)
+            WeightsCoachView(healthStore: healthStore, onBack: {
+                if showingChangeProgram {
+                    dismissChangeProgram()
+                } else {
+                    dismissWeightsCoach()
+                }
+            })
+        } else if healthStore.authorized && showingRunConfig {
+            RunConfigurationView(healthStore: healthStore, onBack: dismissRunConfig, onStart: startRun)
+        } else if showsActivitySelector {
+            ActivityTypeSelector(healthStore: healthStore, onBack: dismissActivitySelector, onRunLocationSelected: {
+                showingActivitySelector = false
+                showingRunConfig = true
+            })
+        } else {
+            homeScreen
+        }
+    }
+
+    // MARK: - Home
+
+    private var homeScreen: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: GLM.Space.cardGap) {
+                greetingHeader
+
+                if !healthStore.authorized {
+                    connectHealthCard
+                }
+
+                if healthStore.authorized && healthStore.selectedWorkoutType == nil {
+                    WorkoutTypeSelector(healthStore: healthStore, onActivitySelected: {
+                        if healthStore.selectedWorkoutType == .weights {
+                            showingWeightsCoach = true
+                        } else {
+                            showingActivitySelector = true
+                        }
+                    })
+                }
+
+                if let runManager, runManager.isActive, !showingRunActive {
+                    resumeRunCard(runManager)
+                }
+
+                if healthStore.authorized && healthStore.shouldShowDeloadBanner {
+                    deloadCard
+                }
+
+                if healthStore.authorized && healthStore.activeWeightProgram?.isActive == true {
+                    activePlanCard
+                    ProgressSummaryCard(healthStore: healthStore)
+                }
+
+                todaysPlan
+                    .padding(.top, 6)
+            }
+            .padding(.horizontal, GLM.Space.gutter)
+            .padding(.top, 14)
+            .padding(.bottom, 32)
+        }
+    }
+
+    private var greetingHeader: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 7) {
+                Text(GLMFormat.greeting).glmText(.greeting)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                HStack(spacing: 7) {
+                    Circle().fill(GLM.purple).frame(width: 6, height: 6)
+                    Text(streakLine).glmText(.body)
+                }
+            }
+            Spacer()
+            NavigationLink(destination: WorkoutHistoryView(healthStore: healthStore)) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(GLM.inkMuted)
+                    .frame(width: 40, height: 40)
+                    .background(GLM.surface)
+                    .overlay { Circle().strokeBorder(GLM.border, lineWidth: 1) }
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.glmPress)
+        }
+        .padding(.bottom, 2)
+    }
+
+    private var streakLine: String {
+        guard healthStore.authorized, healthStore.activeWeightProgram?.isActive == true else {
+            return "Ready when you are"
+        }
+        let streak = healthStore.weeklyStreak
+        switch streak {
+        case 0: return "No streak yet · start one this week"
+        case 1: return "1-week streak"
+        default: return "\(streak)-week streak"
+        }
+    }
+
+    private var connectHealthCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                GLMIconTile(glyph: "❤️")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Connect Health").glmText(.rowTitle)
+                    Text("Reads workouts and heart rate. Nothing about you leaves the phone.")
+                        .glmText(.caption)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Button("Allow Health access") { healthStore.requestAuthorization() }
+                .buttonStyle(.glmPrimary)
+                .padding(.top, 4)
+        }
+        .glmCard(.featured)
+    }
+
+    private var deloadCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                GLMIconTile(glyph: "🌅")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Welcome back").glmText(.rowTitle)
+                    Text("Over a week since your last session. Dropping the weights eases you back in safely.")
+                        .glmText(.caption)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Button("Deload weights") { showingDeloadFromBanner = true }
+                .buttonStyle(.glmSoft)
+                .padding(.top, 4)
+        }
+        .glmCard()
+    }
+
+    private var activePlanCard: some View {
+        HStack(spacing: 14) {
+            GLMIconTile(glyph: "🏋️", size: 44)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Weights plan").glmText(.cardTitle)
+                Text("\(healthStore.activeWeightProgram?.daysPerWeek ?? 0) days per week").glmText(.caption)
+            }
+            Spacer()
+            Button("Edit") {
+                healthStore.selectedWorkoutType = .weights
+                showingActivitySelector = false
+                showingWeightsCoach = false
+                showingChangeProgram = true
+            }
+            .buttonStyle(GLMButtonStyle(variant: .outline, size: .sm, block: false, pill: true))
+        }
+        .glmCard(padding: EdgeInsets(top: 16, leading: 18, bottom: 16, trailing: 18))
+    }
+
+    private func resumeRunCard(_ manager: RunSessionManager) -> some View {
+        Button(action: { showingRunActive = true }) {
+            HStack(spacing: 14) {
+                GLMIconTile(glyph: "🏃", size: 44)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Run in progress").glmText(.cardTitle)
+                    Text(RunFormat.time(manager.elapsed)).glmText(.readout)
+                }
+                Spacer()
+                Text("Resume").glmText(.rowValue, color: GLM.purple)
+            }
+            .glmCard(.featured, padding: EdgeInsets(top: 16, leading: 18, bottom: 16, trailing: 18))
+        }
+        .buttonStyle(.glmPress)
+    }
+
+    // MARK: - Today's plan
+
+    private var todaysPlan: some View {
+        VStack(alignment: .leading, spacing: GLM.Space.cardGap) {
+            GLMSectionHeader("Today's plan") {
+                if healthStore.selectedWorkoutType != nil {
+                    Button("Clear") { healthStore.resetWorkoutPreference() }
+                        .buttonStyle(.glmQuiet)
+                        .font(.system(size: 12))
+                }
+            }
+
+            if let nextWorkout = nextWeightsWorkout, healthStore.activeWeightProgram?.isActive == true {
+                nextWorkoutCard(nextWorkout)
+            } else {
+                VStack(spacing: GLM.Space.listGap) {
+                    ForEach(todaysWorkouts) { workout in
+                        HStack(spacing: 13) {
+                            GLMIconTile(glyph: workout.glyph)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(workout.title).glmText(.rowTitle)
+                                Text("\(workout.time) · \(workout.details)").glmText(.readout)
+                                    .lineLimit(1)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(GLM.inkMuted)
+                        }
+                        .glmRow()
+                    }
+                }
+            }
+        }
+    }
+
+    private func nextWorkoutCard(_ nextWorkout: ProgramWorkout) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                GLMIconTile(glyph: "🏋️")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(nextWorkout.name).glmText(.rowTitle)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                    Text("Next in rotation").glmText(.caption)
+                }
+                Spacer()
+            }
+
+            VStack(spacing: 12) {
+                ForEach(nextWorkout.exercises.indices, id: \.self) { index in
+                    let exercise = nextWorkout.exercises[index]
+                    let setWeight = healthStore.getNextWorkWeight(for: exercise)
+                    let warmups = exercise.generateWarmupSets(setWeight)
+                    let plates = exercise.getPlatesForWeight(setWeight)
+
+                    HStack(alignment: .center, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(exercise.name).glmText(.cardTitle)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                            Text(exerciseMeta(exercise, warmups: warmups.count, plates: plates))
+                                .glmText(.readout)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+                        }
+                        Spacer()
+                        Text(setWeight > 0 ? GLMFormat.kg(setWeight) : "Bodyweight")
+                            .glmText(.rowValue, color: GLM.cyan)
+                            .lineLimit(1)
+                    }
+                }
+            }
+
+            NavigationLink(destination: WorkoutSessionView(healthStore: healthStore, workout: nextWorkout, onBack: {
+                showingWorkoutSession = false
+            })) {
+                Text("Start workout")
+            }
+            .buttonStyle(.glmPrimary)
+            .padding(.top, 4)
+        }
+        .glmCard()
+    }
+
+    private func exerciseMeta(_ exercise: Exercise, warmups: Int, plates: [Double]) -> String {
+        var parts: [String] = []
+        parts.append(warmups > 0 ? "\(warmups)w + \(exercise.sets) × \(exercise.reps)" : "\(exercise.sets) × \(exercise.reps)")
+        if !plates.isEmpty {
+            parts.append(formatPlates(plates))
+        }
+        return parts.joined(separator: " · ")
+    }
 }
 
 /// Animated typing indicator dots
 struct TypingIndicator: View {
     @State private var animationPhase = 0
-    
+
     var body: some View {
         HStack(spacing: 3) {
             ForEach(0..<3) { index in
                 Circle()
-                    .fill(Color.secondary)
+                    .fill(GLM.inkMuted)
                     .frame(width: 5, height: 5)
                     .opacity(animationPhase == index ? 1.0 : 0.3)
             }

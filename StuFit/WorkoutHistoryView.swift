@@ -9,70 +9,121 @@ import SwiftUI
 
 struct WorkoutHistoryView: View {
     @ObservedObject var healthStore: HealthStore
+    @Environment(\.dismiss) private var dismiss
 
     private var sortedSessions: [WorkoutSessionRecord] {
         healthStore.workoutSessionRecords.sorted { $0.startDate > $1.startDate }
     }
 
-    private static let dateFormatter: DateFormatter = {
+    private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.dateStyle = .medium
+        formatter.dateStyle = .none
         formatter.timeStyle = .short
+        return formatter
+    }()
+
+    private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE d MMM"
         return formatter
     }()
 
     private static let durationFormatter: DateComponentsFormatter = {
         let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.hour, .minute, .second]
+        formatter.allowedUnits = [.hour, .minute]
         formatter.unitsStyle = .abbreviated
-        formatter.zeroFormattingBehavior = [.pad]
         return formatter
     }()
 
-    var body: some View {
-        Group {
-            if sortedSessions.isEmpty {
-                ContentUnavailableView(
-                    "No Workouts Yet",
-                    systemImage: "figure.strengthtraining.traditional",
-                    description: Text("Your completed sessions will show up here after you finish a workout.")
-                )
-            } else {
-                List {
-                    ForEach(sortedSessions) { session in
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(alignment: .top) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(session.workoutName)
-                                        .font(.headline)
-                                    Text(Self.dateFormatter.string(from: session.startDate))
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                Spacer()
-                                Text(statusLabel(for: session.status))
-                                    .font(.caption)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(statusColor(for: session.status).opacity(0.18))
-                                    .foregroundColor(statusColor(for: session.status))
-                                    .clipShape(Capsule())
-                            }
+    private var sessionsThisWeek: Int { healthStore.sessionsThisWeek }
 
-                            HStack(spacing: 14) {
-                                Label(formattedDuration(session.duration), systemImage: "timer")
-                                Label(formattedEndDate(session.endDate), systemImage: "calendar")
-                            }
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+    private var activeTimeThisWeek: TimeInterval {
+        let calendar = Calendar.current
+        guard let weekStart = calendar.dateInterval(of: .weekOfYear, for: Date())?.start else { return 0 }
+        return healthStore.workoutSessionRecords
+            .filter { $0.startDate >= weekStart }
+            .reduce(0) { $0 + max(0, $1.duration) }
+    }
+
+    /// Sessions grouped by calendar day, newest first.
+    private var groupedSessions: [(label: String, sessions: [WorkoutSessionRecord])] {
+        let calendar = Calendar.current
+        let groups = Dictionary(grouping: sortedSessions) { calendar.startOfDay(for: $0.startDate) }
+        return groups.keys.sorted(by: >).map { day in
+            (label: dayLabel(day), sessions: groups[day] ?? [])
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            GLMScreenHeader("Workouts", onBack: { dismiss() })
+
+            if sortedSessions.isEmpty {
+                emptyState
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: GLM.Space.listGap) {
+                        HStack(spacing: 10) {
+                            GLMStatTile(value: "\(sessionsThisWeek)", label: "this week")
+                            GLMStatTile(value: formattedDuration(activeTimeThisWeek), label: "active time")
+                            GLMStatTile(value: GLMFormat.count(sortedSessions.count), label: "all time", tone: GLM.cyan)
                         }
-                        .padding(.vertical, 6)
+                        .padding(.bottom, 6)
+
+                        ForEach(groupedSessions, id: \.label) { group in
+                            Text(group.label)
+                                .glmEyebrow()
+                                .padding(.horizontal, 6)
+                                .padding(.top, 8)
+
+                            ForEach(group.sessions) { session in
+                                sessionRow(session)
+                            }
+                        }
                     }
+                    .padding(.horizontal, GLM.Space.gutterTight)
+                    .padding(.top, 16)
+                    .padding(.bottom, 32)
                 }
-                .listStyle(.insetGrouped)
             }
         }
-        .navigationTitle("Workout History")
+        .glmScreen()
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 14) {
+            GLMIconTile(glyph: "🏋️", size: 56, fill: GLM.surface)
+            Text("No workouts yet").glmText(.rowTitle)
+            Text("Finished sessions show up here, grouped by day.")
+                .glmText(.body)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(GLM.Space.gutter)
+    }
+
+    private func sessionRow(_ session: WorkoutSessionRecord) -> some View {
+        HStack(spacing: 13) {
+            GLMIconTile(glyph: "🏋️")
+            VStack(alignment: .leading, spacing: 2) {
+                Text(session.workoutName).glmText(.rowTitle)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Text("\(Self.timeFormatter.string(from: session.startDate)) · \(formattedDuration(session.duration))")
+                    .glmText(.readout)
+            }
+            Spacer()
+            GLMTag(text: statusLabel(for: session.status), color: statusColor(for: session.status), dot: true)
+        }
+        .glmRow()
+    }
+
+    private func dayLabel(_ day: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(day) { return "Today" }
+        if calendar.isDateInYesterday(day) { return "Yesterday" }
+        return Self.dayFormatter.string(from: day)
     }
 
     private func statusLabel(for status: WorkoutSessionStatus) -> String {
@@ -80,32 +131,27 @@ struct WorkoutHistoryView: View {
         case .completed:
             return "Completed"
         case .endedEarly:
-            return "Ended Early"
+            return "Ended early"
         }
     }
 
     private func statusColor(for status: WorkoutSessionStatus) -> Color {
         switch status {
         case .completed:
-            return .green
+            return GLM.success
         case .endedEarly:
-            return .orange
+            return GLM.atRisk
         }
     }
 
     private func formattedDuration(_ duration: TimeInterval) -> String {
-        Self.durationFormatter.string(from: max(0, duration)) ?? "0s"
-    }
-
-    private func formattedEndDate(_ date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter.localizedString(for: date, relativeTo: .now)
+        if duration < 60 { return "\(Int(max(0, duration)))s" }
+        return Self.durationFormatter.string(from: max(0, duration)) ?? "0m"
     }
 }
 
 #Preview {
-    NavigationView {
+    NavigationStack {
         WorkoutHistoryView(healthStore: HealthStore())
     }
 }

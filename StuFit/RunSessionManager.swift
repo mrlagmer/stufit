@@ -4,8 +4,8 @@
 //
 //  Drives an active run: elapsed time, distance (GPS outdoor / pedometer
 //  treadmill), overall + current-km pace, per-km splits, and a spoken pace
-//  cue at the end of every kilometre. Heart rate comes from the paired watch
-//  via HealthStore. The km cue reuses the weights speech flow so podcasts
+//  cue at the end of every kilometre. Heart rate comes from HealthKit via
+//  HealthStore. The km cue reuses the weights speech flow so podcasts
 //  duck for the announcement and resume once it finishes.
 //
 
@@ -81,9 +81,9 @@ final class RunSessionManager: NSObject, ObservableObject {
     private var pedometerStartDate: Date?
 
     // Cadence/steps captured on the phone (CMPedometer) for both outdoor and
-    // treadmill runs, and HR recorded from the live stream the watch relays.
-    // These are saved onto the phone's authoritative workout so the run lands
-    // in Health with distance + cadence + HR even though the watch records none.
+    // treadmill runs, plus any HR observed during the run. These are saved
+    // onto the phone's authoritative workout so the run lands in Health with
+    // distance + cadence + HR.
     private var stepSamples: [HKQuantitySample] = []
     private var lastStepTotal: Double = 0
     private var lastStepSampleAt: Date?
@@ -91,10 +91,8 @@ final class RunSessionManager: NSObject, ObservableObject {
     private var hrSamples: [HKQuantitySample] = []
     private var lastRecordedHR: Double?
 
-    private var lastWatchUpdate: Date = .distantPast
-
     // HealthKit — the phone saves the authoritative run workout (distance +
-    // route + duration) so the run lands in Apple Health with or without a watch.
+    // route + duration) so the run lands in Apple Health.
     private let hkStore = HKHealthStore()
     private var workoutBuilder: HKWorkoutBuilder?
     private var routeBuilder: HKWorkoutRouteBuilder?
@@ -151,7 +149,7 @@ final class RunSessionManager: NSObject, ObservableObject {
         startDate = Date()
         UIApplication.shared.isIdleTimerDisabled = true
 
-        // HealthKit run workout (streams HR back from the watch).
+        // HealthKit run workout (observes HR while the run is active).
         Task {
             await healthStore.startWorkoutSession(
                 workoutName: goalLabel,
@@ -282,8 +280,7 @@ final class RunSessionManager: NSObject, ObservableObject {
 
         let recordedHR = hrSamples
         if !recordedHR.isEmpty {
-            // Prefer HR recorded live from the watch's stream — the watch's own
-            // run workout is discarded, so HealthKit holds no HR to fetch.
+            // Prefer HR observed live during the run.
             builder.add(samples + recordedHR) { _, _ in finalize() }
         } else {
             // Fallback for older data paths: pull whatever HR is in HealthKit.
@@ -388,9 +385,8 @@ final class RunSessionManager: NSObject, ObservableObject {
         }
     }
 
-    /// Record an HR sample from the value the watch streams in (the watch's own
-    /// run workout is discarded, so its HR isn't otherwise persisted). Called
-    /// each tick; only stores a new sample when the value changes.
+    /// Record the current HR value as a sample. Called each tick; only stores
+    /// a new sample when the value changes.
     private func recordHeartRateSample() {
         guard let bpm = heartRate, bpm > 30, bpm < 240, bpm != lastRecordedHR else { return }
         lastRecordedHR = bpm
@@ -414,7 +410,6 @@ final class RunSessionManager: NSObject, ObservableObject {
         // so a boundary crossed between updates is still caught promptly.
         checkForKmCompletion()
         recordHeartRateSample()
-        pushWatchUpdate()
     }
 
     /// Fire a split + spoken cue each time a whole new kilometre is completed.
@@ -426,22 +421,7 @@ final class RunSessionManager: NSObject, ObservableObject {
             let split = Split(km: completedKm, seconds: max(1, splitSeconds))
             splits.append(split)
             speech.speakRunSplit(km: split.km, paceSeconds: split.seconds)
-            pushWatchUpdate(force: true)
         }
-    }
-
-    private func pushWatchUpdate(force: Bool = false) {
-        let now = Date()
-        guard force || now.timeIntervalSince(lastWatchUpdate) >= 2 else { return }
-        lastWatchUpdate = now
-        healthStore.sendRunUpdateToWatch(
-            goalLabel: goalLabel,
-            elapsed: elapsed,
-            distanceKm: distanceKm,
-            currentKmPaceSec: currentKmPaceSec,
-            averagePaceSec: overallPaceSec,
-            goalKm: goalKm
-        )
     }
 
     private func formatKm(_ value: Double) -> String {
