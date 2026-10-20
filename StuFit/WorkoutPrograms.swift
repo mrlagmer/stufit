@@ -286,3 +286,41 @@ struct WorkoutProgramTemplate {
         return programs[days]
     }
 }
+
+/// Every exercise the app knows how to load, announce, and progress. The
+/// trainer may only plan from this list, so each lift it picks gets proper
+/// weights, warmups, and plate maths.
+enum ExerciseCatalog {
+    struct Entry {
+        let name: String
+        let pattern: String
+    }
+
+    static let entries: [Entry] = [
+        Entry(name: "Squats", pattern: "squat · legs"),
+        Entry(name: "Deadlift", pattern: "hinge · posterior chain"),
+        Entry(name: "Romanian Deadlift", pattern: "hinge · hamstrings"),
+        Entry(name: "Bench Press", pattern: "horizontal push · chest"),
+        Entry(name: "Overhead Press", pattern: "vertical push · shoulders"),
+        Entry(name: "Barbell Rows", pattern: "horizontal pull · back"),
+        Entry(name: "Pull Ups", pattern: "vertical pull · back · bodyweight"),
+        Entry(name: "Dumbbell Lunges", pattern: "single-leg · legs"),
+        Entry(name: "Roman Sit Ups", pattern: "core · bodyweight"),
+        Entry(name: "Plank", pattern: "core · timed hold")
+    ]
+
+    static var names: [String] { entries.map(\.name) }
+
+    /// A neutral exercise for weight lookups; sets/reps come from the plan.
+    static func exercise(named name: String) -> Exercise? {
+        guard let match = entries.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) else {
+            return nil
+        }
+        return Exercise(name: match.name, sets: 5, reps: "5")
+    }
+
+    /// Barbell lifts, in catalogue order — the ones with records and streaks.
+    static var barbellLifts: [Exercise] {
+        entries.compactMap { exercise(named: $0.name) }.filter(\.usesBarbellLoading)
+    }
+}

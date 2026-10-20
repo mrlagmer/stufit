@@ -105,18 +105,29 @@ struct WorkoutHistoryView: View {
 
     private func sessionRow(_ session: WorkoutSessionRecord) -> some View {
         HStack(spacing: 13) {
-            GLMIconTile(glyph: "🏋️")
+            GLMIconTile(glyph: session.kind.glyph)
             VStack(alignment: .leading, spacing: 2) {
                 Text(session.workoutName).glmText(.rowTitle)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
-                Text("\(Self.timeFormatter.string(from: session.startDate)) · \(formattedDuration(session.duration))")
+                Text(sessionDetail(session))
                     .glmText(.readout)
             }
             Spacer()
             GLMTag(text: statusLabel(for: session.status), color: statusColor(for: session.status), dot: true)
         }
         .glmRow()
+    }
+
+    private func sessionDetail(_ session: WorkoutSessionRecord) -> String {
+        var parts = [Self.timeFormatter.string(from: session.startDate), formattedDuration(session.duration)]
+        if let km = session.distanceKm {
+            parts.append(String(format: "%.2f km", km))
+        }
+        if let pace = session.paceSecondsPerKm {
+            parts.append("\(RunFormat.pace(pace))/km")
+        }
+        return parts.joined(separator: " · ")
     }
 
     private func dayLabel(_ day: Date) -> String {

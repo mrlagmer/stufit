@@ -89,19 +89,18 @@ extension HealthStore {
         }
     }
 
-    /// Weights sessions completed in the current calendar week.
+    /// Sessions (weights or cardio) completed in the current calendar week.
     var sessionsThisWeek: Int {
         let calendar = Calendar.current
         guard let weekStart = calendar.dateInterval(of: .weekOfYear, for: Date())?.start else { return 0 }
         return sessionCountsByWeekStart[weekStart] ?? 0
     }
 
-    /// Consecutive weeks hitting the active program's days-per-week target.
-    /// The current week counts once the target is met, but an in-progress
-    /// week never breaks the streak.
+    /// Consecutive weeks hitting the weekly session target. The current
+    /// week counts once the target is met, but an in-progress week never
+    /// breaks the streak.
     var weeklyStreak: Int {
-        guard let program = activeWeightProgram, program.isActive else { return 0 }
-        let target = max(1, program.daysPerWeek)
+        let target = max(1, weeklySessionTarget)
         let calendar = Calendar.current
         let counts = sessionCountsByWeekStart
 
@@ -119,24 +118,13 @@ extension HealthStore {
         return streak
     }
 
-    // MARK: - Program Lifts
+    // MARK: - Tracked Lifts
 
-    /// The unique barbell lifts in the active program, in program order —
-    /// the lifts worth surfacing records and streaks for.
-    var activeProgramLifts: [Exercise] {
-        guard let program = activeWeightProgram, program.isActive,
-              let template = WorkoutProgramTemplate.getProgram(for: program.daysPerWeek) else { return [] }
-
-        var seen = Set<String>()
-        var lifts: [Exercise] = []
-        for workout in template.workouts {
-            for exercise in workout.exercises where exercise.usesBarbellLoading {
-                if seen.insert(exercise.name).inserted {
-                    lifts.append(exercise)
-                }
-            }
-        }
-        return lifts
+    /// Barbell lifts that have been logged at least once, in catalogue order
+    /// — the lifts worth surfacing records and streaks for.
+    var trackedLifts: [Exercise] {
+        let logged = Set(completedSetRecords.map(\.exerciseName))
+        return ExerciseCatalog.barbellLifts.filter { logged.contains($0.name) }
     }
 }
 
@@ -148,11 +136,11 @@ struct ProgressSummaryCard: View {
     @ObservedObject var healthStore: HealthStore
 
     private var weeklyTarget: Int {
-        max(1, healthStore.activeWeightProgram?.daysPerWeek ?? 1)
+        max(1, healthStore.weeklySessionTarget)
     }
 
     private var liftsWithRecords: [(name: String, record: LiftRecord, streak: Int)] {
-        healthStore.activeProgramLifts.compactMap { exercise in
+        healthStore.trackedLifts.compactMap { exercise in
             guard let record = healthStore.personalRecord(for: exercise.name) else { return nil }
             return (exercise.name, record, healthStore.liftSuccessStreak(for: exercise.name))
         }
@@ -205,7 +193,7 @@ struct ProgressSummaryCard: View {
                 }
             }
 
-            // One segment per program day this week
+            // One segment per targeted session this week
             HStack(spacing: 6) {
                 ForEach(0..<weeklyTarget, id: \.self) { index in
                     RoundedRectangle(cornerRadius: GLM.Radius.bar, style: .continuous)

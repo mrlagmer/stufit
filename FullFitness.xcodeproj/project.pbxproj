@@ -216,7 +216,7 @@
 			mainGroup = BF21F4932F2835DF003E0B2B;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				BFDD10032F5A00010066A138 /* XCRemoteSwiftPackageReference "KittenTTS-swift" */,
+				BFDD10032F5A00010066A138 /* XCLocalSwiftPackageReference "Packages/KittenTTS-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = BF21F49D2F2835DF003E0B2B /* Products */;
@@ -351,7 +351,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -409,7 +409,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -593,21 +593,17 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		BFDD10032F5A00010066A138 /* XCRemoteSwiftPackageReference "KittenTTS-swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/KittenML/KittenTTS-swift";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.1.0;
-			};
+/* Begin XCLocalSwiftPackageReference section */
+		BFDD10032F5A00010066A138 /* XCLocalSwiftPackageReference "Packages/KittenTTS-swift" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "Packages/KittenTTS-swift";
 		};
-/* End XCRemoteSwiftPackageReference section */
+/* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		BFDD10022F5A00010066A138 /* KittenTTS */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = BFDD10032F5A00010066A138 /* XCRemoteSwiftPackageReference "KittenTTS-swift" */;
+			package = BFDD10032F5A00010066A138 /* XCLocalSwiftPackageReference "Packages/KittenTTS-swift" */;
 			productName = KittenTTS;
 		};
 /* End XCSwiftPackageProductDependency section */

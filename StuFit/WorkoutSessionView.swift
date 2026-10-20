@@ -24,6 +24,12 @@ struct WorkoutSessionView: View {
 
     @ObservedObject var healthStore: HealthStore
     var workout: ProgramWorkout
+    /// Rest after each work set; the trainer shortens it to fit the session.
+    var restDuration: TimeInterval = 180
+    /// Rest after warmup sets — they're light, so the trainer keeps these short.
+    var warmupRestDuration: TimeInterval?
+    /// Trainer's form cue per exercise name, spoken before its first set.
+    var coachingCues: [String: String] = [:]
     var onBack: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -43,6 +49,7 @@ struct WorkoutSessionView: View {
     @State private var warmupSetsPerExercise: [String: [WarmupSet]] = [:]
     @State private var workoutStartDate: Date = .now
     @State private var restEndsAt: Date?
+    @State private var currentRestLength: TimeInterval = 180
     @State private var now: Date = .now
     @State private var workoutSessionId: UUID = UUID()
     @State private var setResultsByExercise: [Int: [SessionSetResult]] = [:]
@@ -53,7 +60,6 @@ struct WorkoutSessionView: View {
     @State private var lastEncouragementTime: Date?
     @State private var isGeneratingEncouragement: Bool = false
     @ScaledMetric(relativeTo: .largeTitle) private var restClockSize: CGFloat = 52
-    private let restDuration: TimeInterval = 180
     private let restNotificationID = "workout-rest-complete"
     
     var currentExercise: Exercise? {
@@ -310,7 +316,7 @@ struct WorkoutSessionView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
 
-                    GLMMetricBar(fraction: 1.0 - (restTimeRemaining / restDuration), color: GLM.purple, height: 6)
+                    GLMMetricBar(fraction: 1.0 - (restTimeRemaining / max(1, currentRestLength)), color: GLM.purple, height: 6)
                 }
                 .glmCard(padding: EdgeInsets(top: 16, leading: 20, bottom: 16, trailing: 20))
 
@@ -961,7 +967,9 @@ struct WorkoutSessionView: View {
         
         // Start rest (don't increment currentSetIndex here - that happens in completeRest)
         onRestTimer = true
-        restEndsAt = Date().addingTimeInterval(restDuration)
+        let rest = isWarmupSet ? (warmupRestDuration ?? restDuration) : restDuration
+        currentRestLength = rest
+        restEndsAt = Date().addingTimeInterval(rest)
         restEndingAnnounced = false
         restCompletedAnnounced = false
         scheduleRestCompleteNotification()
@@ -1067,6 +1075,9 @@ extension WorkoutSessionView {
             let setType = isWarmupSet ? "Warmup" : "Work"
             speechSynthesizer.speakExerciseInfo(name: exercise.name, weight: currentSetWeight, plates: plates, setType: setType, reps: currentSetReps)
         }
+        if currentSetIndex == 0, let cue = coachingCues[exercise.name], !cue.isEmpty {
+            speechSynthesizer.speakCoachLine(cue)
+        }
     }
     
     private func announceNextSet() {
@@ -1166,6 +1177,7 @@ final class SpeechSynthesizerDelegate: NSObject, @preconcurrency AVSpeechSynthes
         case personalRecord
         case plankEncouragement
         case runSplit
+        case coach
     }
 
     private struct SpeechCue {
@@ -1270,6 +1282,12 @@ final class SpeechSynthesizerDelegate: NSObject, @preconcurrency AVSpeechSynthes
         let minutesText = minutes == 1 ? "1 minute" : "\(minutes) minutes"
         let message = "Kilometer \(km). Pace \(minutesText) \(secondsText) per kilometer."
         enqueueSpeech(message, kind: .runSplit)
+    }
+
+    /// Free-form trainer speech: check-in questions, plan intros, and
+    /// coaching cues during a session.
+    func speakCoachLine(_ message: String) {
+        enqueueSpeech(message, kind: .coach)
     }
 
     func stopAndClearQueue() {

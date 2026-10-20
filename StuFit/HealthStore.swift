@@ -8,12 +8,6 @@
 import Foundation
 import Combine
 import HealthKit
-import FoundationModels
-
-enum WorkoutType: String, CaseIterable {
-    case cardio = "Cardio"
-    case weights = "Weights"
-}
 
 struct WeightProgram: Identifiable, Codable {
     let id: UUID
@@ -183,6 +177,24 @@ enum WorkoutSessionStatus: String, Codable {
     }
 }
 
+/// What a session was. Records saved before cardio was tracked decode as
+/// weights, which is all the app logged back then.
+enum SessionKind: String, Codable {
+    case weights
+    case run
+    case walk
+
+    var glyph: String {
+        switch self {
+        case .weights: return "🏋️"
+        case .run: return "🏃"
+        case .walk: return "🚶"
+        }
+    }
+
+    var isCardio: Bool { self != .weights }
+}
+
 struct WorkoutSessionRecord: Identifiable, Codable {
     let id: UUID
     let workoutName: String
@@ -190,6 +202,8 @@ struct WorkoutSessionRecord: Identifiable, Codable {
     let endDate: Date
     let duration: TimeInterval
     let status: WorkoutSessionStatus
+    let kind: SessionKind
+    let distanceKm: Double?
 
     init(
         id: UUID,
@@ -197,7 +211,9 @@ struct WorkoutSessionRecord: Identifiable, Codable {
         startDate: Date,
         endDate: Date,
         duration: TimeInterval,
-        status: WorkoutSessionStatus
+        status: WorkoutSessionStatus,
+        kind: SessionKind = .weights,
+        distanceKm: Double? = nil
     ) {
         self.id = id
         self.workoutName = workoutName
@@ -205,6 +221,8 @@ struct WorkoutSessionRecord: Identifiable, Codable {
         self.endDate = endDate
         self.duration = duration
         self.status = status
+        self.kind = kind
+        self.distanceKm = distanceKm
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -214,6 +232,8 @@ struct WorkoutSessionRecord: Identifiable, Codable {
         case endDate
         case duration
         case status
+        case kind
+        case distanceKm
     }
 
     init(from decoder: Decoder) throws {
@@ -225,6 +245,14 @@ struct WorkoutSessionRecord: Identifiable, Codable {
         self.duration = try container.decodeIfPresent(TimeInterval.self, forKey: .duration)
             ?? max(0, self.endDate.timeIntervalSince(self.startDate))
         self.status = try container.decodeIfPresent(WorkoutSessionStatus.self, forKey: .status) ?? .completed
+        self.kind = (try? container.decodeIfPresent(SessionKind.self, forKey: .kind)) ?? .weights
+        self.distanceKm = try container.decodeIfPresent(Double.self, forKey: .distanceKm)
+    }
+
+    /// Average pace in seconds per km, for cardio sessions with distance.
+    var paceSecondsPerKm: Int? {
+        guard let distanceKm, distanceKm > 0.05 else { return nil }
+        return Int((duration / distanceKm).rounded())
     }
 }
 
@@ -268,48 +296,6 @@ struct ExerciseProgressState: Codable {
     }
 }
 
-struct WeightsSuggestion {
-    let recommendation: String
-    let reasoning: String?
-    let suggestedDays: Int
-}
-
-enum ActivityType: String, Identifiable {
-    case run = "Run"
-    case walk = "Walk"
-    case ride = "Ride"
-    case bench = "Bench Press"
-    case squat = "Squat"
-    case deadlift = "Deadlift"
-    
-    var id: String { self.rawValue }
-    
-    var icon: String {
-        switch self {
-        case .run: return "figure.run"
-        case .walk: return "figure.walk"
-        case .ride: return "bicycle"
-        case .bench: return "dumbbell.fill"
-        case .squat: return "dumbbell.fill"
-        case .deadlift: return "dumbbell.fill"
-        }
-    }
-}
-
-enum RunLocationType: String, Identifiable, CaseIterable {
-    case outdoor = "Outdoor"
-    case treadmill = "Treadmill"
-    
-    var id: String { self.rawValue }
-    
-    var icon: String {
-        switch self {
-        case .outdoor: return "figure.run"
-        case .treadmill: return "figure.run.square.stack"
-        }
-    }
-}
-
 enum RunGoalType: String, CaseIterable, Identifiable {
     case distance = "Distance"
     case time = "Time"
@@ -330,12 +316,6 @@ final class HealthStore: NSObject, ObservableObject {
     @Published var currentHeartRate: Double?
     @Published var isReceivingHeartRate: Bool = false
     @Published var isWorkoutActive: Bool = false
-    @Published var selectedWorkoutType: WorkoutType?
-    @Published var selectedActivityType: ActivityType?
-    @Published var selectedRunLocation: RunLocationType?
-    @Published var runGoal: RunGoal = RunGoal()
-    @Published var suggestion: String?
-    @Published var isGeneratingAdvice: Bool = false
     @Published var activeWeightProgram: WeightProgram? {
         willSet {
             // Save to UserDefaults whenever the program changes
@@ -352,8 +332,6 @@ final class HealthStore: NSObject, ObservableObject {
             }
         }
     }
-    @Published var weightsSuggestion: WeightsSuggestion?
-    @Published var workoutTip: String?
     @Published var completedWorkouts: [CompletedWorkout] = [] {
         willSet {
             // Save to UserDefaults whenever completed workouts change
@@ -421,12 +399,19 @@ final class HealthStore: NSObject, ObservableObject {
             }
         }
     }
+    /// Sessions per week the streak counts toward. Defaults to the old
+    /// weights program's days so existing streaks carry over.
+    @Published var weeklySessionTarget: Int {
+        didSet { UserDefaults.standard.set(weeklySessionTarget, forKey: "weeklySessionTarget") }
+    }
     private var currentWorkoutStartDate: Date?
     private var heartRateQuery: HKAnchoredObjectQuery?
     private var heartRateAnchor: HKQueryAnchor?
     private let heartRateUnit = HKUnit.count().unitDivided(by: HKUnit.minute())
 
     override init() {
+        let savedTarget = UserDefaults.standard.integer(forKey: "weeklySessionTarget")
+        self.weeklySessionTarget = savedTarget > 0 ? savedTarget : 3
         super.init()
         // Load saved weight program from UserDefaults
         if let savedData = UserDefaults.standard.data(forKey: "activeWeightProgram") {
@@ -494,39 +479,15 @@ final class HealthStore: NSObject, ObservableObject {
             self.lastDeloadDate = Date(timeIntervalSince1970: deloadTimestamp)
         }
 
+        if savedTarget == 0, let program = activeWeightProgram, program.isActive {
+            weeklySessionTarget = program.daysPerWeek
+        }
+
         migrateWeightsToValidIncrements()
         checkAuthorizationStatus()
     }
     
     // MARK: - Workout Tracking
-    
-    /// Returns the next workout to do based on the active program and completed workouts
-    func getNextWorkout() -> ProgramWorkout? {
-        guard let program = activeWeightProgram else { return nil }
-        guard let template = WorkoutProgramTemplate.getProgram(for: program.daysPerWeek) else { return nil }
-        
-        guard !template.workouts.isEmpty else { return nil }
-        
-        // If no workouts completed yet, return the first one
-        if completedWorkouts.isEmpty {
-            return template.workouts.first
-        }
-        
-        // Find the most recent completed workout
-        let sortedByDate = completedWorkouts.sorted { $0.completedDate > $1.completedDate }
-        
-        if let lastWorkout = sortedByDate.first {
-            // Find the index of the last completed workout
-            if let lastIndex = template.workouts.firstIndex(where: { $0.name == lastWorkout.workoutName }) {
-                // Return the next one in rotation
-                let nextIndex = (lastIndex + 1) % template.workouts.count
-                return template.workouts[nextIndex]
-            }
-        }
-        
-        // Fallback to first workout if we can't find the last one
-        return template.workouts.first
-    }
     
     /// Mark a workout as completed
     func completeWorkout(_ workoutName: String) {
@@ -554,7 +515,9 @@ final class HealthStore: NSObject, ObservableObject {
         startDate: Date,
         endDate: Date,
         duration: TimeInterval,
-        status: WorkoutSessionStatus
+        status: WorkoutSessionStatus,
+        kind: SessionKind = .weights,
+        distanceKm: Double? = nil
     ) {
         let record = WorkoutSessionRecord(
             id: UUID(),
@@ -562,7 +525,9 @@ final class HealthStore: NSObject, ObservableObject {
             startDate: startDate,
             endDate: endDate,
             duration: duration,
-            status: status
+            status: status,
+            kind: kind,
+            distanceKm: distanceKm
         )
         workoutSessionRecords.append(record)
     }
@@ -810,76 +775,7 @@ final class HealthStore: NSObject, ObservableObject {
         }
     }
 
-    func setWorkoutPreference(_ type: WorkoutType) {
-        self.selectedWorkoutType = type
-        self.selectedActivityType = nil
-        self.selectedRunLocation = nil
-        Task {
-            await suggestActivity(for: type)
-        }
-    }
-    
-    func setActivityPreference(_ type: ActivityType) {
-        self.selectedActivityType = type
-    }
-
-    func resetWorkoutPreference() {
-        self.selectedWorkoutType = nil
-        self.selectedActivityType = nil
-        self.selectedRunLocation = nil
-        self.runGoal = RunGoal()
-        self.suggestion = nil
-    }
-
-    func setRunLocation(_ location: RunLocationType) {
-        self.selectedRunLocation = location
-    }
-
-    func getActivitiesForWorkoutType(_ workoutType: WorkoutType) -> [ActivityType] {
-        switch workoutType {
-        case .cardio:
-            return [.run, .walk, .ride]
-        case .weights:
-            return [.bench, .squat, .deadlift]
-        }
-    }
-
     // MARK: - HealthKit Aggregate Queries
-
-    /// Fetches average heart rate over the last 7 days
-    func fetchAverageHeartRate() async -> Double? {
-        guard let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate) else {
-            return nil
-        }
-
-        let calendar = Calendar.current
-        let now = Date()
-        let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: now) ?? now
-        let predicate = HKQuery.predicateForSamples(
-            withStart: sevenDaysAgo,
-            end: now,
-            options: .strictStartDate
-        )
-
-        return await withCheckedContinuation { continuation in
-            let query = HKStatisticsQuery(
-                quantityType: heartRateType,
-                quantitySamplePredicate: predicate,
-                options: .discreteAverage
-            ) { _, result, error in
-                if let error = error {
-                    print("Error fetching heart rate: \(error.localizedDescription)")
-                    continuation.resume(returning: nil)
-                    return
-                }
-
-                let avgHeartRate = result?.averageQuantity()?.doubleValue(for: HKUnit.count().unitDivided(by: HKUnit.minute()))
-                continuation.resume(returning: avgHeartRate)
-            }
-
-            self.healthStore.execute(query)
-        }
-    }
 
     /// Fetches total step count for today
     func fetchStepCountToday() async -> Double? {
@@ -951,250 +847,6 @@ final class HealthStore: NSObject, ObservableObject {
         }
     }
 
-    // MARK: - Activity Suggestion
-
-    /// Generates personalized activity advice based on aggregated HealthKit data using Foundation Models
-    func suggestActivity(for workoutType: WorkoutType) async {
-        DispatchQueue.main.async {
-            self.isGeneratingAdvice = true
-        }
-        
-        let avgHeartRate = await fetchAverageHeartRate()
-        let stepCount = await fetchStepCountToday()
-        let recentWorkouts = await fetchRecentWorkouts()
-
-        let suggestion = await generateSuggestionWithAI(
-            workoutType: workoutType,
-            avgHeartRate: avgHeartRate,
-            stepCount: stepCount,
-            recentWorkouts: recentWorkouts
-        )
-
-        DispatchQueue.main.async {
-            self.suggestion = suggestion
-            self.isGeneratingAdvice = false
-        }
-    }
-
-    /// Uses Apple Foundation Models to generate personalized fitness advice with streaming
-    private func generateSuggestionWithAI(
-        workoutType: WorkoutType,
-        avgHeartRate: Double?,
-        stepCount: Double?,
-        recentWorkouts: [HKWorkout]
-    ) async -> String {
-        // Build context about the user's health data
-        let healthContext = buildHealthContext(
-            workoutType: workoutType,
-            avgHeartRate: avgHeartRate,
-            stepCount: stepCount,
-            recentWorkouts: recentWorkouts
-        )
-        
-        do {
-            let model = SystemLanguageModel.default
-            
-            guard model.isAvailable else {
-                return "AI advice is not available on this device. Please try again later."
-            }
-            
-            let session = LanguageModelSession()
-            
-            let prompt = """
-            You are a friendly fitness coach. Based on the following health data, provide brief, \
-            personalized advice (2-3 sentences max) for the user who wants to do a \(workoutType.rawValue.lowercased()) workout.
-            
-            \(healthContext)
-            
-            Be encouraging, specific, and actionable. Consider recovery needs and workout timing.
-            """
-            
-            // Stream the response for real-time UI updates
-            var fullResponse = ""
-            for try await partial in session.streamResponse(to: prompt) {
-                fullResponse = partial.content
-                await MainActor.run {
-                    self.suggestion = fullResponse
-                }
-            }
-            
-            return fullResponse
-            
-        } catch {
-            print("Foundation Models error: \(error.localizedDescription)")
-            return "Unable to generate personalized advice at this time. Consider a moderate \(workoutType.rawValue.lowercased()) session based on how you feel."
-        }
-    }
-    
-    /// Builds a context string describing the user's health data for the AI model
-    private func buildHealthContext(
-        workoutType: WorkoutType,
-        avgHeartRate: Double?,
-        stepCount: Double?,
-        recentWorkouts: [HKWorkout]
-    ) -> String {
-        var context = "Health Data:\n"
-        
-        // Time of day context
-        let hour = Calendar.current.component(.hour, from: Date())
-        let timeOfDay: String
-        switch hour {
-        case 5..<12: timeOfDay = "morning"
-        case 12..<17: timeOfDay = "afternoon"
-        case 17..<21: timeOfDay = "evening"
-        default: timeOfDay = "night"
-        }
-        context += "- Current time: \(timeOfDay)\n"
-        
-        // Heart rate context
-        if let avgHR = avgHeartRate {
-            context += "- Average resting heart rate (last 7 days): \(Int(avgHR)) bpm\n"
-        } else {
-            context += "- Heart rate data: not available\n"
-        }
-        
-        // Step count context
-        if let steps = stepCount {
-            context += "- Steps today: \(Int(steps))\n"
-        } else {
-            context += "- Step count: not available\n"
-        }
-        
-        // Recent workout context
-        let cardioWorkouts = recentWorkouts.filter { workout in
-            [.running, .cycling, .swimming, .walking, .hiking, .rowing, .elliptical, .stairClimbing]
-                .contains(workout.workoutActivityType)
-        }
-        let strengthWorkouts = recentWorkouts.filter { $0.workoutActivityType == .traditionalStrengthTraining }
-        
-        if let lastCardio = cardioWorkouts.first {
-            let daysSince = Calendar.current.dateComponents([.day], from: lastCardio.endDate, to: Date()).day ?? 0
-            context += "- Days since last cardio workout: \(daysSince)\n"
-        } else {
-            context += "- No recent cardio workouts recorded\n"
-        }
-        
-        if let lastStrength = strengthWorkouts.first {
-            let daysSince = Calendar.current.dateComponents([.day], from: lastStrength.endDate, to: Date()).day ?? 0
-            context += "- Days since last strength workout: \(daysSince)\n"
-        } else {
-            context += "- No recent strength workouts recorded\n"
-        }
-        
-        context += "- Total workouts in last 7 days: \(recentWorkouts.count)\n"
-        
-        return context
-    }
-    
-    // MARK: - Weights Program Suggestion
-    
-    func hasActiveWeightsProgram() -> Bool {
-        return activeWeightProgram?.isActive ?? false
-    }
-    
-    func generateWeightsProgramSuggestion() async {
-        DispatchQueue.main.async {
-            self.isGeneratingAdvice = true
-        }
-        
-        let avgHeartRate = await fetchAverageHeartRate()
-        let recentWorkouts = await fetchRecentWorkouts()
-        
-        let suggestion = await generateWeightsSuggestionWithAI(
-            avgHeartRate: avgHeartRate,
-            recentWorkouts: recentWorkouts
-        )
-        
-        DispatchQueue.main.async {
-            self.weightsSuggestion = suggestion
-            self.isGeneratingAdvice = false
-        }
-    }
-    
-    private func generateWeightsSuggestionWithAI(
-        avgHeartRate: Double?,
-        recentWorkouts: [HKWorkout]
-    ) async -> WeightsSuggestion {
-        let strengthWorkouts = recentWorkouts.filter { $0.workoutActivityType == .traditionalStrengthTraining }
-        
-        let workoutFrequency: String
-        if strengthWorkouts.count >= 3 {
-            workoutFrequency = "high (already lifting frequently)"
-        } else if strengthWorkouts.count >= 1 {
-            workoutFrequency = "moderate (some lifting experience)"
-        } else {
-            workoutFrequency = "low (new to lifting)"
-        }
-        
-        do {
-            let model = SystemLanguageModel.default
-            
-            guard model.isAvailable else {
-                return WeightsSuggestion(
-                    recommendation: "We recommend starting with 3 days per week of lifting. This is a proven frequency for building strength and muscle while allowing adequate recovery.",
-                    reasoning: "3 days is the most common starting point for strength training.",
-                    suggestedDays: 3
-                )
-            }
-            
-            let session = LanguageModelSession()
-            
-            let prompt = """
-            You are an expert strength training coach. Based on a user with \(workoutFrequency) and \
-            average resting heart rate of \(Int(avgHeartRate ?? 70)) bpm, recommend the ideal number of \
-            days per week they should lift weights (choose from 1, 2, 3, 4, or 5).
-            
-            Respond in this exact JSON format (no markdown, just raw JSON):
-            {
-                "days": <number 1-5>,
-                "recommendation": "<2-3 sentence AI recommendation>",
-                "reasoning": "<1 sentence explanation>"
-            }
-            
-            Consider their current fitness level, recovery capacity, and the scientific evidence that \
-            3-4 days per week is optimal for most people.
-            """
-            
-            var fullResponse = ""
-            for try await partial in session.streamResponse(to: prompt) {
-                fullResponse = partial.content
-            }
-            
-            // Parse JSON response
-            if let data = fullResponse.data(using: .utf8),
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let days = json["days"] as? Int,
-               let recommendation = json["recommendation"] as? String,
-               let reasoning = json["reasoning"] as? String {
-                return WeightsSuggestion(
-                    recommendation: recommendation,
-                    reasoning: reasoning,
-                    suggestedDays: days
-                )
-            } else {
-                // Fallback if parsing fails
-                return WeightsSuggestion(
-                    recommendation: "We recommend starting with 3 days per week of lifting. This balanced approach gives you time for strength building and muscle growth while maintaining adequate recovery.",
-                    reasoning: "3 days is scientifically proven to be optimal for most lifters.",
-                    suggestedDays: 3
-                )
-            }
-            
-        } catch {
-            print("Foundation Models error: \(error.localizedDescription)")
-            return WeightsSuggestion(
-                recommendation: "We recommend starting with 3 days per week of lifting. This balanced approach gives you time for strength building and muscle growth while maintaining adequate recovery.",
-                reasoning: "3 days is scientifically proven to be optimal for most lifters.",
-                suggestedDays: 3
-            )
-        }
-    }
-    
-    func setWeightsProgramDays(_ days: Int) {
-        // This will be called when the user selects a day option
-        // The actual program is created when they click "Create Program"
-    }
-    
     func setCustomExerciseWeights(_ weights: [String: Double]) {
         self.customExerciseWeights = weights
 
@@ -1217,14 +869,7 @@ final class HealthStore: NSObject, ObservableObject {
     }
 
     private func findExercise(named exerciseName: String) -> Exercise? {
-        for template in WorkoutProgramTemplate.programs.values {
-            for workout in template.workouts {
-                if let match = workout.exercises.first(where: { $0.name == exerciseName }) {
-                    return match
-                }
-            }
-        }
-        return nil
+        ExerciseCatalog.exercise(named: exerciseName)
     }
 
     // MARK: - Weight Migration
@@ -1270,7 +915,7 @@ final class HealthStore: NSObject, ObservableObject {
     }
 
     var shouldShowDeloadBanner: Bool {
-        guard activeWeightProgram?.isActive == true else { return false }
+        guard !exerciseProgressStates.isEmpty || !customExerciseWeights.isEmpty else { return false }
         guard let days = daysSinceLastWorkout, days >= 7 else { return false }
         if let deloadDate = lastDeloadDate,
            let lastWorkoutDate = workoutSessionRecords.max(by: { $0.endDate < $1.endDate })?.endDate,
@@ -1308,56 +953,5 @@ final class HealthStore: NSObject, ObservableObject {
         customExerciseWeights = updatedCustom
 
         lastDeloadDate = Date()
-    }
-
-    // MARK: - Workout Tip Generation
-    
-    func generateWorkoutTip(for workout: ProgramWorkout) async {
-        DispatchQueue.main.async {
-            self.isGeneratingAdvice = true
-        }
-        
-        let tip = await generateWorkoutTipWithAI(workout: workout)
-        
-        DispatchQueue.main.async {
-            self.workoutTip = tip
-            self.isGeneratingAdvice = false
-        }
-    }
-    
-    private func generateWorkoutTipWithAI(workout: ProgramWorkout) async -> String {
-        let exerciseNames = workout.exercises.map { $0.name }.joined(separator: ", ")
-        
-        do {
-            let model = SystemLanguageModel.default
-            
-            guard model.isAvailable else {
-                return "Focus on proper form for \(exerciseNames). Take adequate rest between sets."
-            }
-            
-            let session = LanguageModelSession()
-            
-            let prompt = """
-            You are a friendly strength training coach. Generate a brief, actionable tip (1-2 sentences max) \
-            for someone about to do a workout with these exercises: \(exerciseNames).
-            
-            The tip should be specific to these exercises and encourage proper technique and safety.
-            Avoid any JSON or special formatting - just provide the tip text directly.
-            """
-            
-            var fullResponse = ""
-            for try await partial in session.streamResponse(to: prompt) {
-                fullResponse = partial.content
-                await MainActor.run {
-                    self.workoutTip = fullResponse
-                }
-            }
-            
-            return fullResponse
-            
-        } catch {
-            print("Foundation Models error: \(error.localizedDescription)")
-            return "Focus on proper form and take adequate rest between sets for optimal results."
-        }
     }
 }

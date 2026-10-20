@@ -7,55 +7,41 @@
 
 import SwiftUI
 
-struct Workout: Identifiable {
+/// A trainer-built weights session, carried through navigation.
+struct TrainerWeightsSession: Hashable {
     let id = UUID()
-    let time: String
-    let title: String
-    let details: String
-    let type: WorkoutType
-    let glyph: String
+    let workout: ProgramWorkout
+    let restSeconds: Int
+    let warmupRestSeconds: Int
+    let cues: [String: String]
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
+private enum HomeRoute: Hashable {
+    case checkIn
+    case weights(TrainerWeightsSession)
+    case history
+    case settings
 }
 
 struct HomeView: View {
     @StateObject private var healthStore = HealthStore()
-    @State private var showingActivitySelector = false
-    @State private var showingWeightsCoach = false
-    @State private var showingChangeProgram = false
-    @State private var showingWorkoutSession = false
-    @State private var showingRunConfig = false
+    @State private var path: [HomeRoute] = []
     @State private var showingDeloadFromBanner = false
     @State private var runManager: RunSessionManager?
     @State private var showingRunActive = false
 
-    private let todaysWorkouts: [Workout] = [
-        Workout(time: "07:00", title: "Morning cardio", details: "10 min warmup · 20 min run", type: .cardio, glyph: "🏃"),
-        Workout(time: "12:30", title: "Lunchtime strength", details: "3 sets compound lifts · core", type: .weights, glyph: "🏋️"),
-        Workout(time: "18:00", title: "Evening mobility", details: "Stretching and foam rolling", type: .cardio, glyph: "🧘")
-    ]
-
-    var nextWeightsWorkout: ProgramWorkout? {
-        return healthStore.getNextWorkout()
-    }
-
-    private var isOnHome: Bool {
-        !showingActivitySelector && !showingWeightsCoach && !showingChangeProgram && !showingRunConfig
-    }
-
-    private func dismissActivitySelector() {
-        showingActivitySelector = false
-        showingRunConfig = false
-        healthStore.resetWorkoutPreference()
-    }
-
-    private func dismissRunConfig() {
-        showingRunConfig = false
-        showingActivitySelector = true
-    }
-
-    private func startRun() {
-        let outdoor = (healthStore.selectedRunLocation ?? .outdoor) == .outdoor
-        runManager = RunSessionManager(goal: healthStore.runGoal, outdoor: outdoor, healthStore: healthStore)
-        showingRunConfig = false
+    private func startCardio(_ plan: CardioPlan) {
+        runManager = RunSessionManager(
+            goal: plan.goal,
+            outdoor: plan.outdoor,
+            activity: plan.activity,
+            coachCues: plan.cues,
+            healthStore: healthStore
+        )
+        path = []
         showingRunActive = true
     }
 
@@ -63,25 +49,16 @@ struct HomeView: View {
         runManager?.stop()
         runManager = nil
         showingRunActive = false
-        healthStore.resetWorkoutPreference()
-    }
-
-    private func dismissWeightsCoach() {
-        showingWeightsCoach = false
-        healthStore.resetWorkoutPreference()
-    }
-
-    private func dismissChangeProgram() {
-        showingWeightsCoach = false
-        showingChangeProgram = false
-        healthStore.resetWorkoutPreference()
     }
 
     var body: some View {
-        NavigationStack {
-            screenContent
+        NavigationStack(path: $path) {
+            homeScreen
                 .glmScreen()
                 .toolbar(.hidden, for: .navigationBar)
+                .navigationDestination(for: HomeRoute.self) { route in
+                    destination(route)
+                }
         }
         .sheet(isPresented: $showingDeloadFromBanner) {
             DeloadOptionsView(isPresented: $showingDeloadFromBanner, healthStore: healthStore)
@@ -97,34 +74,37 @@ struct HomeView: View {
         }
     }
 
-    private var showsWeightsCoach: Bool {
-        healthStore.authorized && healthStore.selectedWorkoutType == .weights && (showingWeightsCoach || showingChangeProgram)
-    }
-
-    private var showsActivitySelector: Bool {
-        healthStore.authorized && healthStore.selectedWorkoutType != nil && showingActivitySelector
-    }
-
     @ViewBuilder
-    private var screenContent: some View {
-        if showsWeightsCoach {
-            // Weights coach owns the whole screen (it has its own header)
-            WeightsCoachView(healthStore: healthStore, onBack: {
-                if showingChangeProgram {
-                    dismissChangeProgram()
-                } else {
-                    dismissWeightsCoach()
-                }
-            })
-        } else if healthStore.authorized && showingRunConfig {
-            RunConfigurationView(healthStore: healthStore, onBack: dismissRunConfig, onStart: startRun)
-        } else if showsActivitySelector {
-            ActivityTypeSelector(healthStore: healthStore, onBack: dismissActivitySelector, onRunLocationSelected: {
-                showingActivitySelector = false
-                showingRunConfig = true
-            })
-        } else {
-            homeScreen
+    private func destination(_ route: HomeRoute) -> some View {
+        switch route {
+        case .checkIn:
+            TrainerCheckInView(
+                healthStore: healthStore,
+                onBack: { path = [] },
+                onStartWeights: { workout, rest, warmupRest, cues in
+                    let session = TrainerWeightsSession(
+                        workout: workout,
+                        restSeconds: rest,
+                        warmupRestSeconds: warmupRest,
+                        cues: cues
+                    )
+                    // Replace the check-in so finishing returns straight home.
+                    path = [.weights(session)]
+                },
+                onStartCardio: startCardio
+            )
+        case .weights(let session):
+            WorkoutSessionView(
+                healthStore: healthStore,
+                workout: session.workout,
+                restDuration: TimeInterval(session.restSeconds),
+                warmupRestDuration: TimeInterval(session.warmupRestSeconds),
+                coachingCues: session.cues
+            )
+        case .history:
+            WorkoutHistoryView(healthStore: healthStore)
+        case .settings:
+            TrainerSettingsView(healthStore: healthStore)
         }
     }
 
@@ -139,31 +119,20 @@ struct HomeView: View {
                     connectHealthCard
                 }
 
-                if healthStore.authorized && healthStore.selectedWorkoutType == nil {
-                    WorkoutTypeSelector(healthStore: healthStore, onActivitySelected: {
-                        if healthStore.selectedWorkoutType == .weights {
-                            showingWeightsCoach = true
-                        } else {
-                            showingActivitySelector = true
-                        }
-                    })
-                }
-
                 if let runManager, runManager.isActive, !showingRunActive {
                     resumeRunCard(runManager)
                 }
+
+                trainerCard
 
                 if healthStore.authorized && healthStore.shouldShowDeloadBanner {
                     deloadCard
                 }
 
-                if healthStore.authorized && healthStore.activeWeightProgram?.isActive == true {
-                    activePlanCard
+                if !healthStore.workoutSessionRecords.isEmpty {
                     ProgressSummaryCard(healthStore: healthStore)
+                    lastSessionCard
                 }
-
-                todaysPlan
-                    .padding(.top, 6)
             }
             .padding(.horizontal, GLM.Space.gutter)
             .padding(.top, 14)
@@ -183,30 +152,61 @@ struct HomeView: View {
                 }
             }
             Spacer()
-            NavigationLink(destination: WorkoutHistoryView(healthStore: healthStore)) {
-                Image(systemName: "clock.arrow.circlepath")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(GLM.inkMuted)
-                    .frame(width: 40, height: 40)
-                    .background(GLM.surface)
-                    .overlay { Circle().strokeBorder(GLM.border, lineWidth: 1) }
-                    .clipShape(Circle())
+            HStack(spacing: 8) {
+                headerButton(systemImage: "clock.arrow.circlepath", label: "History") { path.append(.history) }
+                headerButton(systemImage: "gearshape", label: "Settings") { path.append(.settings) }
             }
-            .buttonStyle(.glmPress)
         }
         .padding(.bottom, 2)
     }
 
+    private func headerButton(systemImage: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(GLM.inkMuted)
+                .frame(width: 40, height: 40)
+                .background(GLM.surface)
+                .overlay { Circle().strokeBorder(GLM.border, lineWidth: 1) }
+                .clipShape(Circle())
+        }
+        .buttonStyle(.glmPress)
+        .accessibilityLabel(label)
+    }
+
     private var streakLine: String {
-        guard healthStore.authorized, healthStore.activeWeightProgram?.isActive == true else {
+        guard !healthStore.workoutSessionRecords.isEmpty else {
             return "Ready when you are"
         }
-        let streak = healthStore.weeklyStreak
-        switch streak {
+        switch healthStore.weeklyStreak {
         case 0: return "No streak yet · start one this week"
         case 1: return "1-week streak"
-        default: return "\(streak)-week streak"
+        case let streak: return "\(streak)-week streak"
         }
+    }
+
+    private var trainerCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                GLMIconTile(glyph: "🧑‍🏫", size: 44)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Train with your coach").glmText(.cardTitle)
+                    Text(trainerSubtitle).glmText(.caption)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Button("Start a session") { path.append(.checkIn) }
+                .buttonStyle(.glmPrimary)
+                .disabled(runManager?.isActive == true)
+        }
+        .glmCard(.featured)
+    }
+
+    private var trainerSubtitle: String {
+        guard let last = TrainerContext.lastSession(healthStore) else {
+            return "Tell me how long you've got and I'll build today's plan."
+        }
+        return "Last session \(TrainerContext.relativeDay(last.endDate)). I'll plan today around it."
     }
 
     private var connectHealthCard: some View {
@@ -215,16 +215,16 @@ struct HomeView: View {
                 GLMIconTile(glyph: "❤️")
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Connect Health").glmText(.rowTitle)
-                    Text("Reads workouts and heart rate. Nothing about you leaves the phone.")
+                    Text("Reads workouts and heart rate so your coach can plan around them.")
                         .glmText(.caption)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Button("Allow Health access") { healthStore.requestAuthorization() }
-                .buttonStyle(.glmPrimary)
+                .buttonStyle(.glmSoft)
                 .padding(.top, 4)
         }
-        .glmCard(.featured)
+        .glmCard()
     }
 
     private var deloadCard: some View {
@@ -245,31 +245,35 @@ struct HomeView: View {
         .glmCard()
     }
 
-    private var activePlanCard: some View {
-        HStack(spacing: 14) {
-            GLMIconTile(glyph: "🏋️", size: 44)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Weights plan").glmText(.cardTitle)
-                Text("\(healthStore.activeWeightProgram?.daysPerWeek ?? 0) days per week").glmText(.caption)
+    @ViewBuilder
+    private var lastSessionCard: some View {
+        if let last = TrainerContext.lastSession(healthStore) {
+            Button(action: { path.append(.history) }) {
+                HStack(spacing: 13) {
+                    GLMIconTile(glyph: last.kind.glyph)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Last session").glmText(.label)
+                        Text(TrainerContext.describe(last)).glmText(.rowTitle)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(GLM.inkMuted)
+                }
+                .glmRow()
             }
-            Spacer()
-            Button("Edit") {
-                healthStore.selectedWorkoutType = .weights
-                showingActivitySelector = false
-                showingWeightsCoach = false
-                showingChangeProgram = true
-            }
-            .buttonStyle(GLMButtonStyle(variant: .outline, size: .sm, block: false, pill: true))
+            .buttonStyle(.glmPress)
         }
-        .glmCard(padding: EdgeInsets(top: 16, leading: 18, bottom: 16, trailing: 18))
     }
 
     private func resumeRunCard(_ manager: RunSessionManager) -> some View {
         Button(action: { showingRunActive = true }) {
             HStack(spacing: 14) {
-                GLMIconTile(glyph: "🏃", size: 44)
+                GLMIconTile(glyph: manager.activity.sessionKind.glyph, size: 44)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Run in progress").glmText(.cardTitle)
+                    Text("\(manager.activity == .walk ? "Walk" : "Run") in progress").glmText(.cardTitle)
                     Text(RunFormat.time(manager.elapsed)).glmText(.readout)
                 }
                 Spacer()
@@ -278,100 +282,6 @@ struct HomeView: View {
             .glmCard(.featured, padding: EdgeInsets(top: 16, leading: 18, bottom: 16, trailing: 18))
         }
         .buttonStyle(.glmPress)
-    }
-
-    // MARK: - Today's plan
-
-    private var todaysPlan: some View {
-        VStack(alignment: .leading, spacing: GLM.Space.cardGap) {
-            GLMSectionHeader("Today's plan") {
-                if healthStore.selectedWorkoutType != nil {
-                    Button("Clear") { healthStore.resetWorkoutPreference() }
-                        .buttonStyle(.glmQuiet)
-                        .font(.system(size: 12))
-                }
-            }
-
-            if let nextWorkout = nextWeightsWorkout, healthStore.activeWeightProgram?.isActive == true {
-                nextWorkoutCard(nextWorkout)
-            } else {
-                VStack(spacing: GLM.Space.listGap) {
-                    ForEach(todaysWorkouts) { workout in
-                        HStack(spacing: 13) {
-                            GLMIconTile(glyph: workout.glyph)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(workout.title).glmText(.rowTitle)
-                                Text("\(workout.time) · \(workout.details)").glmText(.readout)
-                                    .lineLimit(1)
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(GLM.inkMuted)
-                        }
-                        .glmRow()
-                    }
-                }
-            }
-        }
-    }
-
-    private func nextWorkoutCard(_ nextWorkout: ProgramWorkout) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 12) {
-                GLMIconTile(glyph: "🏋️")
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(nextWorkout.name).glmText(.rowTitle)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-                    Text("Next in rotation").glmText(.caption)
-                }
-                Spacer()
-            }
-
-            VStack(spacing: 12) {
-                ForEach(nextWorkout.exercises.indices, id: \.self) { index in
-                    let exercise = nextWorkout.exercises[index]
-                    let setWeight = healthStore.getNextWorkWeight(for: exercise)
-                    let warmups = exercise.generateWarmupSets(setWeight)
-                    let plates = exercise.getPlatesForWeight(setWeight)
-
-                    HStack(alignment: .center, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(exercise.name).glmText(.cardTitle)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                            Text(exerciseMeta(exercise, warmups: warmups.count, plates: plates))
-                                .glmText(.readout)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.75)
-                        }
-                        Spacer()
-                        Text(setWeight > 0 ? GLMFormat.kg(setWeight) : "Bodyweight")
-                            .glmText(.rowValue, color: GLM.cyan)
-                            .lineLimit(1)
-                    }
-                }
-            }
-
-            NavigationLink(destination: WorkoutSessionView(healthStore: healthStore, workout: nextWorkout, onBack: {
-                showingWorkoutSession = false
-            })) {
-                Text("Start workout")
-            }
-            .buttonStyle(.glmPrimary)
-            .padding(.top, 4)
-        }
-        .glmCard()
-    }
-
-    private func exerciseMeta(_ exercise: Exercise, warmups: Int, plates: [Double]) -> String {
-        var parts: [String] = []
-        parts.append(warmups > 0 ? "\(warmups)w + \(exercise.sets) × \(exercise.reps)" : "\(exercise.sets) × \(exercise.reps)")
-        if !plates.isEmpty {
-            parts.append(formatPlates(plates))
-        }
-        return parts.joined(separator: " · ")
     }
 }
 
@@ -388,8 +298,9 @@ struct TypingIndicator: View {
                     .opacity(animationPhase == index ? 1.0 : 0.3)
             }
         }
-        .onAppear {
-            Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { _ in
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(400))
                 withAnimation(.easeInOut(duration: 0.2)) {
                     animationPhase = (animationPhase + 1) % 3
                 }

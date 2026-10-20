@@ -17,6 +17,22 @@ import HealthKit
 import UIKit
 
 @MainActor
+/// Cardio the trainer can plan. Both use the phone's GPS/pedometer as the
+/// distance source.
+enum CardioActivity: String {
+    case run
+    case walk
+
+    var noun: String { rawValue }
+
+    var sessionKind: SessionKind {
+        switch self {
+        case .run: return .run
+        case .walk: return .walk
+        }
+    }
+}
+
 final class RunSessionManager: NSObject, ObservableObject {
 
     struct Split: Identifiable {
@@ -58,7 +74,11 @@ final class RunSessionManager: NSObject, ObservableObject {
 
     let goal: RunGoal
     let outdoor: Bool
+    let activity: CardioActivity
     private let healthStore: HealthStore
+    /// Trainer cues, spoken one at a time after each kilometre split.
+    private var coachCues: [String]
+    private var goalReachedAnnounced = false
 
     // MARK: - Internals
 
@@ -97,9 +117,11 @@ final class RunSessionManager: NSObject, ObservableObject {
     private var workoutBuilder: HKWorkoutBuilder?
     private var routeBuilder: HKWorkoutRouteBuilder?
 
-    init(goal: RunGoal, outdoor: Bool, healthStore: HealthStore) {
+    init(goal: RunGoal, outdoor: Bool, activity: CardioActivity = .run, coachCues: [String] = [], healthStore: HealthStore) {
         self.goal = goal
         self.outdoor = outdoor
+        self.activity = activity
+        self.coachCues = coachCues
         self.healthStore = healthStore
         super.init()
         self.gpsStrength = outdoor ? .acquiring : .notApplicable
@@ -117,10 +139,11 @@ final class RunSessionManager: NSObject, ObservableObject {
 
     var goalLabel: String {
         let place = outdoor ? "Outdoor" : "Treadmill"
+        let noun = activity.noun
         switch goal.type {
-        case .distance: return "\(formatKm(goal.distanceKm)) km run · \(place)"
-        case .time:     return "\(goal.timeMinutes) min run · \(place)"
-        case .open:     return "Open run · \(place)"
+        case .distance: return "\(formatKm(goal.distanceKm)) km \(noun) · \(place)"
+        case .time:     return "\(goal.timeMinutes) min \(noun) · \(place)"
+        case .open:     return "Open \(noun) · \(place)"
         }
     }
 
@@ -209,6 +232,28 @@ final class RunSessionManager: NSObject, ObservableObject {
         UIApplication.shared.isIdleTimerDisabled = false
         finishHealthKitWorkout()
         Task { await healthStore.endWorkoutSession(duration: elapsed) }
+        recordSession()
+    }
+
+    /// Log the run/walk in the app's own history so streaks and the trainer
+    /// see it. Sessions under a minute are treated as accidental starts.
+    private func recordSession() {
+        guard elapsed >= 60 else { return }
+        let reachedGoal: Bool
+        switch goal.type {
+        case .distance: reachedGoal = distanceKm >= goal.distanceKm - 0.05
+        case .time:     reachedGoal = elapsed >= Double(goal.timeMinutes * 60) - 5
+        case .open:     reachedGoal = true
+        }
+        healthStore.recordWorkoutSession(
+            workoutName: goalLabel,
+            startDate: startDate,
+            endDate: Date(),
+            duration: elapsed,
+            status: reachedGoal ? .completed : .endedEarly,
+            kind: activity.sessionKind,
+            distanceKm: distanceKm > 0 ? distanceKm : nil
+        )
     }
 
     // MARK: - HealthKit workout
@@ -233,7 +278,7 @@ final class RunSessionManager: NSObject, ObservableObject {
     private func startWorkoutBuilder(at begin: Date) {
         guard isActive else { return }
         let config = HKWorkoutConfiguration()
-        config.activityType = .running
+        config.activityType = activity == .walk ? .walking : .running
         config.locationType = outdoor ? .outdoor : .indoor
 
         let builder = HKWorkoutBuilder(healthStore: hkStore, configuration: config, device: .local())
@@ -409,7 +454,21 @@ final class RunSessionManager: NSObject, ObservableObject {
         // Pedometer/location push distance asynchronously; recompute km here too
         // so a boundary crossed between updates is still caught promptly.
         checkForKmCompletion()
+        checkForGoalReached()
         recordHeartRateSample()
+    }
+
+    private func checkForGoalReached() {
+        guard !goalReachedAnnounced else { return }
+        let reached: Bool
+        switch goal.type {
+        case .distance: reached = distanceKm >= goal.distanceKm
+        case .time:     reached = elapsed >= Double(goal.timeMinutes * 60)
+        case .open:     reached = false
+        }
+        guard reached else { return }
+        goalReachedAnnounced = true
+        speech.speakCoachLine("That's your goal done. Great work. Ease off and cool down, or keep going if you feel good.")
     }
 
     /// Fire a split + spoken cue each time a whole new kilometre is completed.
@@ -421,6 +480,9 @@ final class RunSessionManager: NSObject, ObservableObject {
             let split = Split(km: completedKm, seconds: max(1, splitSeconds))
             splits.append(split)
             speech.speakRunSplit(km: split.km, paceSeconds: split.seconds)
+            if !coachCues.isEmpty {
+                speech.speakCoachLine(coachCues.removeFirst())
+            }
         }
     }
 
